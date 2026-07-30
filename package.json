@@ -1,0 +1,17 @@
+{
+  "name": "colors-booking-app",
+  "version": "1.0.0",
+  "description": "Digital Event Booking & QR Pass System",
+  "scripts": {
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "seed": "cd server && npm run seed",
+    "build": "cd client && npm install && npm run build && cd ../server && npm install",
+    "start": "cd server && node src/index.js",
+    "install:all": "cd server && npm install && cd ../client && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1"
+  }
+}

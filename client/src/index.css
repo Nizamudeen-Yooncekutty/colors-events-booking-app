@@ -1,0 +1,221 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+@plugin "tailwindcss-animate";
+
+/* ─── Theme Tokens ─── */
+@theme {
+  --color-primary: #006e74;
+  --color-primary-foreground: #ffffff;
+  --color-primary-50: #e6f3f4;
+  --color-primary-100: #d9e9ea;
+  --color-primary-200: #b3d3d5;
+  --color-primary-300: #80b7b9;
+  --color-primary-400: #4d9b9e;
+  --color-primary-500: #006e74;
+  --color-primary-600: #005a5f;
+  --color-primary-700: #004a4e;
+  --color-primary-800: #003c51;
+  --color-primary-900: #002a35;
+
+  --color-ust-purple: #881d87;
+  --color-ust-green: #01b27c;
+  --color-ust-yellow: #ffbe00;
+  --color-ust-red: #fc6a59;
+  --color-ust-cyan: #ecece1;
+
+  --color-success: #01b27c;
+  --color-success-light: #e1f3ef;
+  --color-warning: #ffbb00;
+  --color-warning-light: #faf4e3;
+  --color-error: #fc6a59;
+  --color-error-light: #faecec;
+  --color-destructive: #ec0000;
+  --color-destructive-foreground: #ffffff;
+
+  --color-background: #fafafc;
+  --color-foreground: #161617;
+  --color-card: #ffffff;
+  --color-card-foreground: #161617;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #161617;
+
+  --color-ust-gray-100: #ffffff;
+  --color-ust-gray-200: #fafafc;
+  --color-ust-gray-300: #f5f5f5;
+  --color-ust-gray-350: #E9E9E9;
+  --color-ust-gray-400: #d1d1d1;
+  --color-ust-gray-500: #a8a8a8;
+  --color-ust-gray-600: #707070;
+  --color-ust-gray-700: #404040;
+  --color-ust-gray-800: #282727;
+  --color-ust-gray-900: #161617;
+
+  --color-secondary: #ebeff1;
+  --color-secondary-foreground: #161617;
+  --color-muted: #ebeff1;
+  --color-muted-foreground: #707070;
+  --color-accent: #d9e9ea;
+  --color-accent-foreground: #003c51;
+
+  --color-border: #d7e0e3;
+  --color-input: #d7e0e3;
+  --color-ring: #006e74;
+
+  --radius: 0.5rem;
+  --font-poppins: 'Poppins', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+/* ─── Base ─── */
+@layer base {
+  html {
+    font-size: 16px;
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-poppins);
+    margin: 0;
+    overflow-x: hidden;
+    /* Cross-platform font rendering */
+    -webkit-font-smoothing: antialiased;   /* macOS: thinner, crisper */
+    -moz-osx-font-smoothing: grayscale;    /* Firefox on macOS */
+    text-rendering: optimizeLegibility;    /* Windows: better kerning */
+    font-feature-settings: "kern" 1;
+  }
+
+  /* Responsive root font */
+  @media (max-width: 374px) {
+    html { font-size: 14px; }
+  }
+  @media (min-width: 375px) and (max-width: 767px) {
+    html { font-size: 15px; }
+  }
+  @media (min-width: 768px) and (max-width: 1023px) {
+    html { font-size: 15.5px; }
+  }
+  @media (min-width: 1024px) {
+    html { font-size: 16px; }
+  }
+
+  /* Prevent horizontal overflow on mobile */
+  #root {
+    overflow-x: hidden;
+    min-height: 100dvh;
+  }
+
+  /* Touch-friendly tap targets */
+  button, a, [role="button"] {
+    min-height: 36px;
+  }
+
+  /* ── Cross-platform scrollbar normalization ── */
+  /* Thin scrollbar for Windows/Linux (Firefox) */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-ust-gray-400) transparent;
+  }
+
+  /* Thin scrollbar for Windows/Linux (Chromium) */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--color-ust-gray-400);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-ust-gray-500);
+  }
+
+  /* ── iOS / Safari fixes ── */
+  /* Prevent zoom on input focus (iOS zooms at <16px) */
+  @supports (-webkit-touch-callout: none) {
+    input, select, textarea {
+      font-size: max(16px, 1em);
+    }
+  }
+
+  /* Remove default iOS input shadows */
+  input, textarea, select {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  /* Restore date/select native appearance where needed */
+  input[type="date"],
+  input[type="time"],
+  select {
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23707070' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 28px;
+  }
+  input[type="date"] {
+    background-image: none;
+    padding-right: 12px;
+  }
+
+  /* ── Windows-specific font weight fix ── */
+  /* Windows renders Poppins 400 thinner than Mac — bump light text slightly */
+  @media (-ms-high-contrast: none), (-ms-high-contrast: active) {
+    body { font-weight: 450; }
+  }
+
+  /* ── Focus visible for keyboard nav (a11y across all platforms) ── */
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  /* Fix html5-qrcode video to not overflow */
+  #qr-reader video {
+    width: 100% !important;
+    height: auto !important;
+    border-radius: 0.5rem;
+  }
+  #qr-reader {
+    border: none !important;
+  }
+
+  /* ── Selection color (consistent cross-platform) ── */
+  ::selection {
+    background-color: var(--color-primary-200);
+    color: var(--color-foreground);
+  }
+
+  /* ── Smooth image rendering across platforms ── */
+  img {
+    image-rendering: -webkit-optimize-contrast; /* Chromium */
+    image-rendering: crisp-edges;
+  }
+}
+
+/* ─── Utilities ─── */
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* Safe area padding for notched devices (iPhone, etc.) */
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .safe-top { padding-top: env(safe-area-inset-top, 0px); }
+  .safe-left { padding-left: env(safe-area-inset-left, 0px); }
+  .safe-right { padding-right: env(safe-area-inset-right, 0px); }
+}
