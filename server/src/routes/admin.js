@@ -2,6 +2,7 @@ const express = require('express');
 const Employee = require('../models/Employee');
 const Event = require('../models/Event');
 const Booking = require('../models/Booking');
+const WalkIn = require('../models/WalkIn');
 const { protect, adminOnly } = require('../middleware/auth');
 
 const router = express.Router();
@@ -14,6 +15,14 @@ router.get('/dashboard', protect, adminOnly, async (req, res) => {
     const activeEvents = await Event.countDocuments({ status: 'active' });
     const totalBookings = await Booking.countDocuments({ status: { $ne: 'cancelled' } });
     const totalCheckedIn = await Booking.countDocuments({ status: 'checked_in' });
+    const totalWalkIns = await WalkIn.countDocuments();
+
+    const walkInByType = await WalkIn.aggregate([
+      { $group: { _id: '$attendeeType', count: { $sum: 1 } } },
+    ]);
+
+    const walkInStats = { guest: 0, staff: 0, housekeeping: 0, unregistered_employee: 0 };
+    walkInByType.forEach(w => { walkInStats[w._id] = w.count; });
 
     // Recent events with stats
     const recentEvents = await Event.find()
@@ -30,6 +39,7 @@ router.get('/dashboard', protect, adminOnly, async (req, res) => {
         event: event._id,
         status: 'checked_in',
       });
+      event.walkInCount = await WalkIn.countDocuments({ event: event._id });
     }
 
     res.json({
@@ -39,6 +49,8 @@ router.get('/dashboard', protect, adminOnly, async (req, res) => {
         activeEvents,
         totalBookings,
         totalCheckedIn,
+        totalWalkIns,
+        walkInStats,
       },
       recentEvents,
     });
@@ -80,6 +92,197 @@ router.get('/events/:eventId/bookings', protect, adminOnly, async (req, res) => 
     };
 
     res.json({ bookings, stats });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// GET /api/admin/events/:eventId/report - comprehensive event report with classification
+router.get('/events/:eventId/report', protect, adminOnly, async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.eventId).lean();
+    if (!event) return res.status(404).json({ message: 'Event not found' });
+
+    const bookings = await Booking.find({
+      event: req.params.eventId,
+      status: { $ne: 'cancelled' },
+    })
+      .populate('employee', 'name employeeId email department phone')
+      .lean();
+
+    const walkIns = await WalkIn.find({ event: req.params.eventId })
+      .populate('checkedInBy', 'name employeeId')
+      .lean();
+
+    // Classification breakdown
+    const classification = {
+      employees: {
+        total: bookings.length,
+        checkedIn: bookings.filter(b => b.status === 'checked_in').length,
+        pending: bookings.filter(b => b.status === 'confirmed').length,
+      },
+      guests: {
+        total: walkIns.filter(w => w.attendeeType === 'guest').length,
+      },
+      staff: {
+        total: walkIns.filter(w => w.attendeeType === 'staff').length,
+      },
+      housekeeping: {
+        total: walkIns.filter(w => w.attendeeType === 'housekeeping').length,
+      },
+      unregisteredEmployees: {
+        total: walkIns.filter(w => w.attendeeType === 'unregistered_employee').length,
+      },
+    };
+
+    const totalAttendees = bookings.filter(b => b.status === 'checked_in').length + walkIns.length;
+
+    // Food breakdown across all attendees
+    const foodMap = {};
+    bookings.forEach(b => {
+      if (b.status !== 'cancelled') {
+        foodMap[b.foodPreference] = (foodMap[b.foodPreference] || 0) + 1;
+      }
+    });
+    walkIns.forEach(w => {
+      if (w.foodPreference) {
+        foodMap[w.foodPreference] = (foodMap[w.foodPreference] || 0) + 1;
+      }
+    });
+    const foodBreakdown = Object.entries(foodMap).map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+
+    // Slot breakdown
+    const slotMap = {};
+    if (event.timeSlots?.length > 0) {
+      event.timeSlots.forEach(s => {
+        slotMap[s._id.toString()] = { label: s.label, employees: 0, walkIns: 0 };
+      });
+      bookings.forEach(b => {
+        if (b.timeSlot && slotMap[b.timeSlot.toString()]) {
+          slotMap[b.timeSlot.toString()].employees++;
+        }
+      });
+      walkIns.forEach(w => {
+        if (w.timeSlot && slotMap[w.timeSlot.toString()]) {
+          slotMap[w.timeSlot.toString()].walkIns++;
+        }
+      });
+    }
+    const slotBreakdown = Object.values(slotMap);
+
+    // Hourly check-in timeline
+    const timeline = {};
+    bookings.filter(b => b.status === 'checked_in' && b.checkedInAt).forEach(b => {
+      const hour = new Date(b.checkedInAt).getHours();
+      const key = `${hour.toString().padStart(2, '0')}:00`;
+      timeline[key] = (timeline[key] || { employees: 0, walkIns: 0 });
+      timeline[key].employees++;
+    });
+    walkIns.forEach(w => {
+      const hour = new Date(w.checkedInAt).getHours();
+      const key = `${hour.toString().padStart(2, '0')}:00`;
+      timeline[key] = (timeline[key] || { employees: 0, walkIns: 0 });
+      timeline[key].walkIns++;
+    });
+    const checkInTimeline = Object.entries(timeline)
+      .map(([hour, counts]) => ({ hour, ...counts, total: counts.employees + counts.walkIns }))
+      .sort((a, b) => a.hour.localeCompare(b.hour));
+
+    res.json({
+      event,
+      classification,
+      totalAttendees,
+      foodBreakdown,
+      slotBreakdown,
+      checkInTimeline,
+      bookings,
+      walkIns,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// GET /api/admin/events/:eventId/report/download - download CSV report
+router.get('/events/:eventId/report/download', protect, adminOnly, async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.eventId).lean();
+    if (!event) return res.status(404).json({ message: 'Event not found' });
+
+    const bookings = await Booking.find({
+      event: req.params.eventId,
+      status: { $ne: 'cancelled' },
+    })
+      .populate('employee', 'name employeeId email department phone')
+      .lean();
+
+    const walkIns = await WalkIn.find({ event: req.params.eventId })
+      .populate('checkedInBy', 'name employeeId')
+      .lean();
+
+    const hasSlots = event.timeSlots?.length > 0;
+    const headers = [
+      'Type', 'Name', 'Employee ID', 'Email', 'Phone', 'Department',
+      ...(hasSlots ? ['Time Slot'] : []),
+      'Food Preference', 'Status', 'Checked In At', 'Notes',
+    ];
+
+    const escapeCSV = (val) => {
+      if (val == null) return '';
+      const str = String(val);
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const rows = [];
+
+    bookings.forEach(b => {
+      rows.push([
+        'Employee',
+        b.employee?.name || '',
+        b.employee?.employeeId || '',
+        b.employee?.email || '',
+        b.employee?.phone || '',
+        b.employee?.department || '',
+        ...(hasSlots ? [b.timeSlotLabel || ''] : []),
+        b.foodPreference || '',
+        b.status === 'checked_in' ? 'Checked In' : 'Confirmed',
+        b.checkedInAt ? new Date(b.checkedInAt).toLocaleString() : '',
+        '',
+      ].map(escapeCSV));
+    });
+
+    walkIns.forEach(w => {
+      const typeLabels = {
+        guest: 'Guest',
+        staff: 'Staff',
+        housekeeping: 'Housekeeping',
+        unregistered_employee: 'Unregistered Employee',
+      };
+      rows.push([
+        typeLabels[w.attendeeType] || w.attendeeType,
+        w.name || '',
+        w.employeeId || '',
+        w.email || '',
+        w.phone || '',
+        w.department || '',
+        ...(hasSlots ? [w.timeSlotLabel || ''] : []),
+        w.foodPreference || '',
+        'Walk-in',
+        w.checkedInAt ? new Date(w.checkedInAt).toLocaleString() : '',
+        w.notes || '',
+      ].map(escapeCSV));
+    });
+
+    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+
+    const filename = `${event.title.replace(/[^a-zA-Z0-9]/g, '_')}_report.csv`;
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csv);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

@@ -12,6 +12,8 @@ import AdminDashboard from '@/pages/AdminDashboard';
 import CreateEventPage from '@/pages/CreateEventPage';
 import AdminEventPage from '@/pages/AdminEventPage';
 import EditEventPage from '@/pages/EditEventPage';
+import EventReportPage from '@/pages/EventReportPage';
+import WalkInQRPage from '@/pages/WalkInQRPage';
 
 function ProtectedRoute({ children, roles }) {
   const { employee, loading } = useAuth();
@@ -70,6 +72,12 @@ function App() {
             } />
             <Route path="/admin/events/:eventId/edit" element={
               <ProtectedRoute roles={['admin']}><EditEventPage /></ProtectedRoute>
+            } />
+            <Route path="/admin/events/:eventId/report" element={
+              <ProtectedRoute roles={['admin']}><EventReportPage /></ProtectedRoute>
+            } />
+            <Route path="/admin/events/:eventId/walkin-qr" element={
+              <ProtectedRoute roles={['admin']}><WalkInQRPage /></ProtectedRoute>
             } />
           </Route>
 

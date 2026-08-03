@@ -7,7 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Users, CalendarDays, Ticket, ScanLine, Plus, BarChart3, Eye } from 'lucide-react';
+import {
+  Users, CalendarDays, Ticket, ScanLine, Plus, BarChart3, Eye,
+  UserPlus, UserCheck, Building2, UsersRound,
+} from 'lucide-react';
 
 export default function AdminDashboard() {
   const [data, setData] = useState(null);
@@ -37,12 +40,22 @@ export default function AdminDashboard() {
 
   const stats = data?.stats || {};
   const recentEvents = data?.recentEvents || [];
+  const walkInStats = stats.walkInStats || {};
+
+  const totalAttendees = (stats.totalCheckedIn || 0) + (stats.totalWalkIns || 0);
 
   const statCards = [
     { label: 'Total Employees', value: stats.totalEmployees, icon: Users, color: 'text-primary bg-primary-100' },
     { label: 'Active Events', value: stats.activeEvents, icon: CalendarDays, color: 'text-ust-purple bg-ust-purple/10' },
     { label: 'Total Bookings', value: stats.totalBookings, icon: Ticket, color: 'text-primary-700 bg-primary-50' },
-    { label: 'Checked In', value: stats.totalCheckedIn, icon: ScanLine, color: 'text-green-700 bg-success-light' },
+    { label: 'Total Attended', value: totalAttendees, icon: UserCheck, color: 'text-green-700 bg-success-light' },
+  ];
+
+  const classificationCards = [
+    { label: 'Employees (Checked In)', value: stats.totalCheckedIn || 0, icon: ScanLine, color: 'text-green-700 bg-green-50' },
+    { label: 'Guests', value: walkInStats.guest || 0, icon: UsersRound, color: 'text-blue-700 bg-blue-50' },
+    { label: 'Staff', value: walkInStats.staff || 0, icon: Building2, color: 'text-amber-700 bg-amber-50' },
+    { label: 'Housekeeping', value: walkInStats.housekeeping || 0, icon: Users, color: 'text-purple-700 bg-purple-50' },
   ];
 
   return (
@@ -60,6 +73,7 @@ export default function AdminDashboard() {
         </Link>
       </div>
 
+      {/* Primary stats */}
       <div className="mb-5 grid gap-3 grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat, index) => {
           const Icon = stat.icon;
@@ -83,6 +97,58 @@ export default function AdminDashboard() {
         })}
       </div>
 
+      {/* Classification breakdown */}
+      {totalAttendees > 0 && (
+        <Card className="mb-5">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
+              <UserPlus className="h-4 w-4 text-primary" />
+              Attendee Classification
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+              {classificationCards.map((stat, index) => {
+                const Icon = stat.icon;
+                const pct = totalAttendees > 0 ? Math.round((stat.value / totalAttendees) * 100) : 0;
+                return (
+                  <motion.div key={stat.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 + index * 0.06 }}>
+                    <div className="rounded-lg border p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className={`rounded-md p-1.5 ${stat.color}`}>
+                          <Icon className="h-3.5 w-3.5" />
+                        </div>
+                        <p className="text-[10px] text-muted-foreground sm:text-xs">{stat.label}</p>
+                      </div>
+                      <div className="flex items-end justify-between">
+                        <p className="text-xl font-bold text-foreground">{stat.value}</p>
+                        <p className="text-[10px] text-muted-foreground">{pct}%</p>
+                      </div>
+                      <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-ust-gray-300">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${pct}%` }}
+                          transition={{ delay: 0.5, duration: 0.6 }}
+                          className="h-full rounded-full bg-primary"
+                        />
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+
+            {(walkInStats.unregistered_employee || 0) > 0 && (
+              <div className="mt-3 flex items-center gap-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                <UserPlus className="h-3.5 w-3.5 shrink-0" />
+                {walkInStats.unregistered_employee} unregistered employee{walkInStats.unregistered_employee > 1 ? 's' : ''} attended via walk-in
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Recent events */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
@@ -118,6 +184,9 @@ export default function AdminDashboard() {
                       <span>{formatDate(event.eventDate)}</span>
                       <span>{event.bookingCount} bookings</span>
                       <span>{event.checkedInCount} checked in</span>
+                      {event.walkInCount > 0 && (
+                        <span className="text-amber-600">{event.walkInCount} walk-ins</span>
+                      )}
                     </div>
                     {event.bookingCount > 0 && (
                       <div className="mt-1 h-1.5 w-full max-w-[180px] overflow-hidden rounded-full bg-ust-gray-300">

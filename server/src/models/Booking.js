@@ -19,6 +19,10 @@ const bookingSchema = new mongoose.Schema({
     type: String,
     default: '',
   },
+  slotColor: {
+    type: String,
+    default: '',
+  },
   foodPreference: {
     type: String,
     required: true,

@@ -3,7 +3,7 @@ const Booking = require('../models/Booking');
 const Event = require('../models/Event');
 const Employee = require('../models/Employee');
 const { protect, adminOrVolunteer } = require('../middleware/auth');
-const { generateQRData, generateQRImage } = require('../utils/qrcode');
+const { generateQRData, generateQRImage, getSlotColor, isWalkInQR } = require('../utils/qrcode');
 const { sendBookingConfirmation } = require('../utils/email');
 
 const router = express.Router();
@@ -88,16 +88,22 @@ router.post('/', protect, async (req, res) => {
       }
     }
 
-    // Generate QR
+    // Generate QR with slot-specific color
+    const slotIndex = selectedSlot
+      ? event.timeSlots.findIndex(s => s._id.toString() === selectedSlot._id.toString())
+      : null;
+    const slotColor = selectedSlot ? getSlotColor(slotIndex) : null;
+
     const tempId = Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
     const qrData = generateQRData(tempId, req.employee.employeeId, eventId);
-    const qrCode = await generateQRImage(qrData);
+    const qrCode = await generateQRImage(qrData, slotIndex);
 
     const booking = await Booking.create({
       employee: req.employee._id,
       event: eventId,
       timeSlot: selectedSlot ? selectedSlot._id : null,
       timeSlotLabel: selectedSlot ? selectedSlot.label : '',
+      slotColor: slotColor ? slotColor.dark : '',
       foodPreference,
       qrCode,
       qrData,
@@ -189,6 +195,14 @@ router.delete('/:id', protect, async (req, res) => {
 router.post('/scan', protect, adminOrVolunteer, async (req, res) => {
   try {
     const { qrData } = req.body;
+
+    if (isWalkInQR(qrData)) {
+      return res.status(400).json({
+        message: 'walk_in_qr',
+        isWalkInQR: true,
+        qrData,
+      });
+    }
 
     const booking = await Booking.findOne({ qrData })
       .populate('employee', 'name employeeId email department phone')

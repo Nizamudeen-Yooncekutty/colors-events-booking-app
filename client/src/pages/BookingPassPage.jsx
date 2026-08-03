@@ -12,6 +12,19 @@ import {
   User, Hash, CheckCircle2, Building2, Clock,
 } from 'lucide-react';
 
+const SLOT_COLOR_MAP = {
+  '#6A1B9A': { bg: '#F3E5F5', border: '#CE93D8', gradient: 'from-[#6A1B9A] to-[#8E24AA]', label: 'text-purple-700', labelBg: 'bg-purple-50' },
+  '#1565C0': { bg: '#E3F2FD', border: '#90CAF9', gradient: 'from-[#1565C0] to-[#1E88E5]', label: 'text-blue-700', labelBg: 'bg-blue-50' },
+  '#2E7D32': { bg: '#E8F5E9', border: '#A5D6A7', gradient: 'from-[#2E7D32] to-[#43A047]', label: 'text-green-700', labelBg: 'bg-green-50' },
+  '#E65100': { bg: '#FFF3E0', border: '#FFCC80', gradient: 'from-[#E65100] to-[#F57C00]', label: 'text-orange-700', labelBg: 'bg-orange-50' },
+  '#C62828': { bg: '#FFEBEE', border: '#EF9A9A', gradient: 'from-[#C62828] to-[#E53935]', label: 'text-red-700', labelBg: 'bg-red-50' },
+};
+
+function getSlotTheme(slotColor) {
+  if (slotColor && SLOT_COLOR_MAP[slotColor]) return SLOT_COLOR_MAP[slotColor];
+  return { bg: '#F5F5F5', border: '#E0E0E0', gradient: 'from-primary to-primary-800', label: 'text-gray-700', labelBg: 'bg-gray-50' };
+}
+
 export default function BookingPassPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -36,6 +49,8 @@ export default function BookingPassPage() {
 
   if (!booking) return null;
 
+  const theme = getSlotTheme(booking.slotColor);
+
   const passDetails = [
     { icon: User, label: 'Name', value: booking.employee?.name },
     { icon: Hash, label: 'Employee ID', value: booking.employee?.employeeId },
@@ -59,24 +74,48 @@ export default function BookingPassPage() {
         transition={{ type: 'spring', stiffness: 200 }}
       >
         <Card className="overflow-hidden">
-          {/* Header */}
-          <div className="bg-gradient-to-r from-primary to-primary-800 px-4 py-4 text-center text-white sm:px-6 sm:py-5">
+          {/* Header - colored by slot */}
+          <div className={`bg-gradient-to-r ${theme.gradient} px-4 py-4 text-center text-white sm:px-6 sm:py-5`}>
             <h2 className="text-base font-bold sm:text-lg">{booking.event?.title}</h2>
             <p className="mt-0.5 text-[10px] text-white/80 sm:text-xs">Digital Event Pass</p>
+            {booking.timeSlotLabel && (
+              <span className="mt-2 inline-block rounded-full bg-white/20 px-3 py-0.5 text-[10px] font-medium backdrop-blur-sm sm:text-xs">
+                {booking.timeSlotLabel}
+              </span>
+            )}
           </div>
 
           <CardContent className="p-4 sm:p-5">
-            {/* QR Code */}
+            {/* QR Code with slot-colored border */}
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ type: 'spring', stiffness: 200, delay: 0.2 }}
               className="mb-4 flex justify-center"
             >
-              <div className="rounded-xl border-2 border-border bg-white p-2.5 sm:p-3">
+              <div
+                className="rounded-xl p-2.5 sm:p-3"
+                style={{
+                  backgroundColor: theme.bg,
+                  border: `3px solid ${theme.border}`,
+                }}
+              >
                 <img src={booking.qrCode} alt="QR Pass" className="h-36 w-36 sm:h-44 sm:w-44" />
               </div>
             </motion.div>
+
+            {/* Slot color indicator */}
+            {booking.slotColor && booking.timeSlotLabel && (
+              <div className="mb-3 flex items-center justify-center gap-2">
+                <span
+                  className="inline-block h-3 w-3 rounded-full"
+                  style={{ backgroundColor: booking.slotColor }}
+                />
+                <span className="text-[10px] font-medium text-muted-foreground sm:text-xs">
+                  {booking.timeSlotLabel}
+                </span>
+              </div>
+            )}
 
             {/* Pass Code */}
             {booking.qrData && (
