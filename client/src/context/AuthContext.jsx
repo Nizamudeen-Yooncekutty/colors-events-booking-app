@@ -3,6 +3,17 @@ import api from '@/lib/api';
 
 const AuthContext = createContext(null);
 
+function isTokenExpired(token) {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    if (!payload.exp) return false;
+    // Add 5-second buffer for clock skew
+    return payload.exp * 1000 < Date.now() - 5000;
+  } catch {
+    return true;
+  }
+}
+
 export function AuthProvider({ children }) {
   const [employee, setEmployee] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -11,8 +22,15 @@ export function AuthProvider({ children }) {
     const token = localStorage.getItem('token');
     const stored = localStorage.getItem('employee');
     if (token && stored) {
+      // Check if token is expired before making API call
+      if (isTokenExpired(token)) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('employee');
+        setLoading(false);
+        return;
+      }
       setEmployee(JSON.parse(stored));
-      // Verify token is still valid
+      // Verify token is still valid on server
       api.get('/auth/me')
         .then(res => {
           setEmployee(res.data.employee);

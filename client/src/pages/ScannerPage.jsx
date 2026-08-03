@@ -15,6 +15,7 @@ import {
   User, Hash, UtensilsCrossed, Building2, Clock, Search,
   CalendarDays, MapPin, Phone, Mail, UserPlus, Users,
 } from 'lucide-react';
+import { sanitizeName, sanitizePhone, sanitizeEmployeeId, sanitizeEmail } from '@/lib/sanitize';
 
 const ATTENDEE_TYPES = [
   { value: 'guest', label: 'Guest', color: 'bg-blue-100 text-blue-700' },
@@ -43,6 +44,7 @@ export default function ScannerPage() {
   const [showAddDetails, setShowAddDetails] = useState(false);
   const [pendingWalkIn, setPendingWalkIn] = useState(null);
   const [addDetailsForm, setAddDetailsForm] = useState({ name: '', phone: '', department: '' });
+  const [walkInErrors, setWalkInErrors] = useState({});
   const scannerRef = useRef(null);
   const html5QrRef = useRef(null);
 
@@ -189,10 +191,32 @@ export default function ScannerPage() {
     setLookupResults(null);
   };
 
+  const validateWalkInForm = () => {
+    const errors = {};
+    if (!walkInForm.name.trim()) {
+      errors.name = 'Name is required';
+    } else if (walkInForm.name.trim().length > 100) {
+      errors.name = 'Name must be 100 characters or less';
+    }
+    if (walkInForm.phone && walkInForm.phone.length > 20) {
+      errors.phone = 'Phone must be 20 characters or less';
+    }
+    if (walkInForm.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(walkInForm.email)) {
+      errors.email = 'Invalid email format';
+    }
+    if (walkInForm.notes && walkInForm.notes.length > 500) {
+      errors.notes = 'Notes must be 500 characters or less';
+    }
+    if (!walkInForm.eventId) {
+      errors.eventId = 'Please select an event';
+    }
+    setWalkInErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleWalkInSubmit = async (e) => {
     e.preventDefault();
-    if (!walkInForm.eventId || !walkInForm.name.trim()) {
-      setError('Please select an event and enter a name');
+    if (!validateWalkInForm()) {
       return;
     }
     setWalkInLoading(true);
@@ -422,8 +446,11 @@ export default function ScannerPage() {
                 <Label className="text-xs">Event *</Label>
                 <select
                   value={walkInForm.eventId}
-                  onChange={(e) => handleEventChange(e.target.value)}
-                  className="mt-1 w-full h-9 rounded-md border border-ust-gray-400 bg-ust-gray-200 px-3 text-sm"
+                  onChange={(e) => {
+                    handleEventChange(e.target.value);
+                    setWalkInErrors(prev => ({ ...prev, eventId: '' }));
+                  }}
+                  className={`mt-1 w-full h-9 rounded-md border bg-ust-gray-200 px-3 text-sm ${walkInErrors.eventId ? 'border-error' : 'border-ust-gray-400'}`}
                   required
                 >
                   <option value="">Select event...</option>
@@ -431,6 +458,7 @@ export default function ScannerPage() {
                     <option key={ev._id} value={ev._id}>{ev.title}</option>
                   ))}
                 </select>
+                {walkInErrors.eventId && <p className="text-error text-[10px] font-medium mt-0.5">{walkInErrors.eventId}</p>}
               </div>
 
               {/* Attendee type */}
@@ -459,11 +487,16 @@ export default function ScannerPage() {
                 <Label className="text-xs">Name *</Label>
                 <Input
                   value={walkInForm.name}
-                  onChange={(e) => setWalkInForm(f => ({ ...f, name: e.target.value }))}
+                  onChange={(e) => {
+                    setWalkInForm(f => ({ ...f, name: sanitizeName(e.target.value) }));
+                    setWalkInErrors(prev => ({ ...prev, name: '' }));
+                  }}
                   placeholder="Full name"
-                  className="mt-1 border-ust-gray-400 text-sm"
+                  className={`mt-1 text-sm ${walkInErrors.name ? 'border-error' : 'border-ust-gray-400'}`}
+                  maxLength={100}
                   required
                 />
+                {walkInErrors.name && <p className="text-error text-[10px] font-medium mt-0.5">{walkInErrors.name}</p>}
               </div>
 
               {/* Employee ID (for unregistered employees) */}
@@ -472,9 +505,10 @@ export default function ScannerPage() {
                   <Label className="text-xs">Employee ID</Label>
                   <Input
                     value={walkInForm.employeeId}
-                    onChange={(e) => setWalkInForm(f => ({ ...f, employeeId: e.target.value }))}
+                    onChange={(e) => setWalkInForm(f => ({ ...f, employeeId: sanitizeEmployeeId(e.target.value) }))}
                     placeholder="e.g. EMP001"
                     className="mt-1 border-ust-gray-400 text-sm"
+                    maxLength={20}
                   />
                 </div>
               )}
@@ -485,10 +519,15 @@ export default function ScannerPage() {
                   <Label className="text-xs">Phone</Label>
                   <Input
                     value={walkInForm.phone}
-                    onChange={(e) => setWalkInForm(f => ({ ...f, phone: e.target.value }))}
+                    onChange={(e) => {
+                      setWalkInForm(f => ({ ...f, phone: sanitizePhone(e.target.value) }));
+                      setWalkInErrors(prev => ({ ...prev, phone: '' }));
+                    }}
                     placeholder="Phone number"
-                    className="mt-1 border-ust-gray-400 text-sm"
+                    className={`mt-1 text-sm ${walkInErrors.phone ? 'border-error' : 'border-ust-gray-400'}`}
+                    maxLength={20}
                   />
+                  {walkInErrors.phone && <p className="text-error text-[10px] font-medium mt-0.5">{walkInErrors.phone}</p>}
                 </div>
                 <div>
                   <Label className="text-xs">Department</Label>
@@ -497,8 +536,26 @@ export default function ScannerPage() {
                     onChange={(e) => setWalkInForm(f => ({ ...f, department: e.target.value }))}
                     placeholder="Department"
                     className="mt-1 border-ust-gray-400 text-sm"
+                    maxLength={100}
                   />
                 </div>
+              </div>
+
+              {/* Email */}
+              <div>
+                <Label className="text-xs">Email</Label>
+                <Input
+                  value={walkInForm.email}
+                  onChange={(e) => {
+                    setWalkInForm(f => ({ ...f, email: sanitizeEmail(e.target.value) }));
+                    setWalkInErrors(prev => ({ ...prev, email: '' }));
+                  }}
+                  placeholder="Email address"
+                  className={`mt-1 text-sm ${walkInErrors.email ? 'border-error' : 'border-ust-gray-400'}`}
+                  maxLength={255}
+                  type="email"
+                />
+                {walkInErrors.email && <p className="text-error text-[10px] font-medium mt-0.5">{walkInErrors.email}</p>}
               </div>
 
               {/* Time slot (if event has slots) */}
@@ -541,6 +598,7 @@ export default function ScannerPage() {
                     onChange={(e) => setWalkInForm(f => ({ ...f, foodPreference: e.target.value }))}
                     placeholder="e.g. Vegetarian"
                     className="mt-1 border-ust-gray-400 text-sm"
+                    maxLength={100}
                   />
                 </div>
               )}
@@ -550,10 +608,15 @@ export default function ScannerPage() {
                 <Label className="text-xs">Notes</Label>
                 <Input
                   value={walkInForm.notes}
-                  onChange={(e) => setWalkInForm(f => ({ ...f, notes: e.target.value }))}
+                  onChange={(e) => {
+                    setWalkInForm(f => ({ ...f, notes: e.target.value }));
+                    setWalkInErrors(prev => ({ ...prev, notes: '' }));
+                  }}
                   placeholder="Any additional notes..."
-                  className="mt-1 border-ust-gray-400 text-sm"
+                  className={`mt-1 text-sm ${walkInErrors.notes ? 'border-error' : 'border-ust-gray-400'}`}
+                  maxLength={500}
                 />
+                {walkInErrors.notes && <p className="text-error text-[10px] font-medium mt-0.5">{walkInErrors.notes}</p>}
               </div>
 
               <Button type="submit" className="w-full gap-2 text-sm" size="lg" disabled={walkInLoading}>

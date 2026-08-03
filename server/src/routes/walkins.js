@@ -1,7 +1,9 @@
 const express = require('express');
+const { body, param } = require('express-validator');
 const WalkIn = require('../models/WalkIn');
 const Event = require('../models/Event');
 const { protect, adminOrVolunteer, adminOnly } = require('../middleware/auth');
+const { handleValidationErrors } = require('../middleware/validate');
 const { getSlotColor, generateWalkInQRData, generateWalkInQRImage, isWalkInQR, parseWalkInQR, WALKIN_TYPE_COLORS } = require('../utils/qrcode');
 
 const router = express.Router();
@@ -14,13 +16,25 @@ const TYPE_LABELS = {
 };
 
 // POST /api/walkins - register and check in a walk-in (manual form or QR-based)
-router.post('/', protect, adminOrVolunteer, async (req, res) => {
+router.post('/', protect, adminOrVolunteer, [
+  body('eventId').isMongoId().withMessage('Invalid event ID'),
+  body('attendeeType').isIn(['guest', 'staff', 'housekeeping', 'unregistered_employee']).withMessage('Invalid attendee type'),
+  body('name').optional().trim().isLength({ max: 100 }).withMessage('Name must be at most 100 characters'),
+  body('phone').optional().trim().isLength({ max: 20 }).withMessage('Phone must be at most 20 characters'),
+  body('email').optional().trim().custom((value) => {
+    if (value && value.length > 0) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(value)) {
+        throw new Error('Invalid email format');
+      }
+    }
+    return true;
+  }),
+  body('department').optional().trim().isLength({ max: 100 }).withMessage('Department must be at most 100 characters'),
+  body('notes').optional().trim().isLength({ max: 500 }).withMessage('Notes must be at most 500 characters'),
+], handleValidationErrors, async (req, res) => {
   try {
     const { eventId, name, phone, email, attendeeType, department, employeeId, foodPreference, timeSlotId, notes } = req.body;
-
-    if (!eventId || !attendeeType) {
-      return res.status(400).json({ message: 'Event and attendee type are required' });
-    }
 
     const event = await Event.findById(eventId);
     if (!event) {
@@ -64,12 +78,14 @@ router.post('/', protect, adminOrVolunteer, async (req, res) => {
       walkIn: populated,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'An error occurred. Please try again.' });
   }
 });
 
 // POST /api/walkins/scan - handle walk-in QR scan (auto check-in)
-router.post('/scan', protect, adminOrVolunteer, async (req, res) => {
+router.post('/scan', protect, adminOrVolunteer, [
+  body('qrData').isString().trim().isLength({ min: 1, max: 500 }).withMessage('QR data is required (max 500 chars)'),
+], handleValidationErrors, async (req, res) => {
   try {
     const { qrData, name, phone, department, foodPreference, notes } = req.body;
 
@@ -116,12 +132,14 @@ router.post('/scan', protect, adminOrVolunteer, async (req, res) => {
       attendeeType: parsed.attendeeType,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'An error occurred. Please try again.' });
   }
 });
 
 // GET /api/walkins/event/:eventId/qrcodes - get pre-generated QR codes for an event
-router.get('/event/:eventId/qrcodes', protect, adminOrVolunteer, async (req, res) => {
+router.get('/event/:eventId/qrcodes', protect, adminOrVolunteer, [
+  param('eventId').isMongoId().withMessage('Invalid event ID'),
+], handleValidationErrors, async (req, res) => {
   try {
     const event = await Event.findById(req.params.eventId).select('title eventDate venue status');
     if (!event) {
@@ -151,12 +169,14 @@ router.get('/event/:eventId/qrcodes', protect, adminOrVolunteer, async (req, res
 
     res.json({ event, qrCodes });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'An error occurred. Please try again.' });
   }
 });
 
 // GET /api/walkins/event/:eventId - list walk-ins for an event
-router.get('/event/:eventId', protect, adminOrVolunteer, async (req, res) => {
+router.get('/event/:eventId', protect, adminOrVolunteer, [
+  param('eventId').isMongoId().withMessage('Invalid event ID'),
+], handleValidationErrors, async (req, res) => {
   try {
     const { type, search } = req.query;
     const filter = { event: req.params.eventId };
@@ -187,7 +207,7 @@ router.get('/event/:eventId', protect, adminOrVolunteer, async (req, res) => {
 
     res.json({ walkIns, stats });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'An error occurred. Please try again.' });
   }
 });
 

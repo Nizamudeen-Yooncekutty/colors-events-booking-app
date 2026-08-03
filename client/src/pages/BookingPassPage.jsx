@@ -77,7 +77,7 @@ export default function BookingPassPage() {
           {/* Header - colored by slot */}
           <div className={`bg-gradient-to-r ${theme.gradient} px-4 py-4 text-center text-white sm:px-6 sm:py-5`}>
             <h2 className="text-base font-bold sm:text-lg">{booking.event?.title}</h2>
-            <p className="mt-0.5 text-[10px] text-white/80 sm:text-xs">Digital Event Pass</p>
+            <p className="mt-0.5 text-[10px] text-white/80 sm:text-xs">Digital Event Token</p>
             {booking.timeSlotLabel && (
               <span className="mt-2 inline-block rounded-full bg-white/20 px-3 py-0.5 text-[10px] font-medium backdrop-blur-sm sm:text-xs">
                 {booking.timeSlotLabel}
@@ -157,6 +157,13 @@ export default function BookingPassPage() {
             <p className="mt-3 text-center text-[10px] text-muted-foreground sm:text-xs">
               Show this QR code at the venue for entry
             </p>
+
+            <div className="mt-3 flex justify-center">
+              <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 px-2.5 py-0.5 shadow-sm">
+                <svg className="h-2.5 w-2.5 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" /></svg>
+                <span className="text-[9px] text-white sm:text-[10px]">Powered by Color <span className="font-bold">Orange</span></span>
+              </span>
+            </div>
           </CardContent>
         </Card>
       </motion.div>

@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { sanitizeEmployeeId } from '@/lib/sanitize';
 
 export default function LoginPage() {
   const [employeeId, setEmployeeId] = useState('');
@@ -14,12 +15,28 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  const validateAll = () => {
+    const errors = {};
+    if (!employeeId.trim()) {
+      errors.employeeId = 'Employee ID is required';
+    }
+    if (!password) {
+      errors.password = 'Password is required';
+    } else if (password.length < 6) {
+      errors.password = 'Password must be at least 6 characters';
+    }
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    if (!validateAll()) return;
     setLoading(true);
     try {
       const data = await login(employeeId, password);
@@ -57,9 +74,9 @@ export default function LoginPage() {
               </svg>
             </motion.div>
             <h1 className="text-base font-semibold text-foreground sm:text-lg">
-              <span className="font-bold">Colors</span> Booking
+              <span className="font-bold">UST</span> PassMint
             </h1>
-            <p className="mt-0.5 text-[11px] text-ust-gray-600 sm:text-xs">Digital Event Pass System</p>
+            <p className="mt-0.5 text-[11px] text-ust-gray-600 sm:text-xs">Digital Event Token System</p>
           </div>
 
           <div className="mb-4 sm:mb-5">
@@ -79,28 +96,36 @@ export default function LoginPage() {
             )}
 
             <div className="space-y-1.5">
-              <Label htmlFor="employeeId">Employee ID</Label>
+              <Label htmlFor="employeeId">Employee ID *</Label>
               <Input
                 id="employeeId"
                 placeholder="e.g. EMP001"
                 value={employeeId}
-                onChange={(e) => setEmployeeId(e.target.value)}
+                onChange={(e) => {
+                  setEmployeeId(sanitizeEmployeeId(e.target.value));
+                  setFieldErrors(prev => ({ ...prev, employeeId: '' }));
+                }}
                 required
-                className="border-ust-gray-400 focus-visible:border-primary"
+                maxLength={20}
+                className={`${fieldErrors.employeeId ? 'border-error' : 'border-ust-gray-400'} focus-visible:border-primary`}
               />
+              {fieldErrors.employeeId && <p className="text-error text-[10px] font-medium mt-0.5">{fieldErrors.employeeId}</p>}
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">Password *</Label>
               <div className="relative">
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
                   placeholder="Enter your password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setFieldErrors(prev => ({ ...prev, password: '' }));
+                  }}
                   required
-                  className="border-ust-gray-400 pr-10 focus-visible:border-primary"
+                  className={`${fieldErrors.password ? 'border-error' : 'border-ust-gray-400'} pr-10 focus-visible:border-primary`}
                 />
                 <button
                   type="button"
@@ -110,6 +135,7 @@ export default function LoginPage() {
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
+              {fieldErrors.password && <p className="text-error text-[10px] font-medium mt-0.5">{fieldErrors.password}</p>}
             </div>
 
             <Button type="submit" className="w-full gap-2 rounded-full text-sm" size="lg" disabled={loading}>
@@ -144,6 +170,12 @@ export default function LoginPage() {
         <p className="mt-3 text-center text-[11px] text-ust-gray-500 sm:mt-4 sm:text-xs">
           Admin access? Use your admin Employee ID to login.
         </p>
+        <div className="mt-3 text-center">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 px-3.5 py-1 shadow-sm">
+            <svg className="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" /></svg>
+            <span className="text-[10px] text-white sm:text-xs">Powered by Color <span className="font-bold">Orange</span></span>
+          </span>
+        </div>
       </motion.div>
     </div>
   );

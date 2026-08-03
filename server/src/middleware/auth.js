@@ -9,7 +9,19 @@ const protect = async (req, res, next) => {
     }
 
     const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (!token || token.length > 2048) {
+      return res.status(401).json({ message: 'Not authorized, invalid token' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, {
+      algorithms: ['HS256'],
+      maxAge: process.env.JWT_EXPIRES_IN || '7d',
+    });
+
+    if (!decoded.id) {
+      return res.status(401).json({ message: 'Not authorized, malformed token' });
+    }
+
     const employee = await Employee.findById(decoded.id).select('-password');
 
     if (!employee || !employee.isActive) {
@@ -19,6 +31,9 @@ const protect = async (req, res, next) => {
     req.employee = employee;
     next();
   } catch (error) {
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ message: 'Session expired, please login again' });
+    }
     return res.status(401).json({ message: 'Not authorized, token invalid' });
   }
 };
@@ -40,6 +55,7 @@ const adminOrVolunteer = (req, res, next) => {
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+    algorithm: 'HS256',
   });
 };
 

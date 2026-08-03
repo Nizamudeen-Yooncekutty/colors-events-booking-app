@@ -1,7 +1,7 @@
 {
-  "name": "colors-booking-app",
+  "name": "ust-passmint",
   "version": "1.0.0",
-  "description": "Digital Event Booking & QR Pass System",
+  "description": "UST PassMint - Digital Event Token System",
   "scripts": {
     "dev:server": "cd server && npm run dev",
     "dev:client": "cd client && npm run dev",

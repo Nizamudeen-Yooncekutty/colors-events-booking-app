@@ -159,7 +159,7 @@ export default function WalkInQRPage() {
 
                   {/* Print instruction */}
                   <p className="hidden print:block text-center text-sm text-gray-500 mt-2">
-                    Place this QR code at the venue entrance. Scan with the Colors app to check in.
+                    Place this QR code at the venue entrance. Scan with UST PassMint to check in.
                   </p>
                 </CardContent>
               </Card>

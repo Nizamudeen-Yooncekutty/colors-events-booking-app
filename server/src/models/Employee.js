@@ -8,11 +8,13 @@ const employeeSchema = new mongoose.Schema({
     unique: true,
     trim: true,
     uppercase: true,
+    maxlength: 20,
   },
   name: {
     type: String,
     required: true,
     trim: true,
+    maxlength: 100,
   },
   email: {
     type: String,
@@ -20,21 +22,25 @@ const employeeSchema = new mongoose.Schema({
     unique: true,
     lowercase: true,
     trim: true,
+    maxlength: 255,
   },
   password: {
     type: String,
     required: true,
     minlength: 6,
+    maxlength: 128,
   },
   department: {
     type: String,
     trim: true,
     default: '',
+    maxlength: 100,
   },
   phone: {
     type: String,
     trim: true,
     default: '',
+    maxlength: 20,
   },
   role: {
     type: String,

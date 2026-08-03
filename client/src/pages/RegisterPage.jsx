@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { sanitizeEmployeeId, sanitizeName, sanitizeEmail, sanitizePhone } from '@/lib/sanitize';
 
 export default function RegisterPage() {
   const [form, setForm] = useState({
@@ -20,16 +21,58 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
   const { register } = useAuth();
   const navigate = useNavigate();
 
+  const sanitizers = {
+    employeeId: sanitizeEmployeeId,
+    name: sanitizeName,
+    email: sanitizeEmail,
+    phone: sanitizePhone,
+  };
+
   const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    const sanitizer = sanitizers[name];
+    setForm({ ...form, [name]: sanitizer ? sanitizer(value) : value });
+    setFieldErrors(prev => ({ ...prev, [name]: '' }));
+  };
+
+  const validateAll = () => {
+    const errors = {};
+    if (!form.employeeId.trim()) {
+      errors.employeeId = 'Employee ID is required';
+    } else if (!/^[a-zA-Z0-9]+$/.test(form.employeeId.trim())) {
+      errors.employeeId = 'Employee ID must be alphanumeric';
+    } else if (form.employeeId.trim().length < 3 || form.employeeId.trim().length > 20) {
+      errors.employeeId = 'Employee ID must be 3-20 characters';
+    }
+    if (!form.name.trim()) {
+      errors.name = 'Full Name is required';
+    } else if (form.name.trim().length < 2 || form.name.trim().length > 100) {
+      errors.name = 'Full Name must be 2-100 characters';
+    }
+    if (!form.email.trim()) {
+      errors.email = 'Email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      errors.email = 'Invalid email format';
+    }
+    if (!form.password) {
+      errors.password = 'Password is required';
+    } else if (form.password.length < 6) {
+      errors.password = 'Password must be at least 6 characters';
+    } else if (!/[a-zA-Z]/.test(form.password) || !/[0-9]/.test(form.password)) {
+      errors.password = 'Password must contain a letter and a number';
+    }
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    if (!validateAll()) return;
     setLoading(true);
     try {
       await register(form);
@@ -67,7 +110,7 @@ export default function RegisterPage() {
               </svg>
             </motion.div>
             <h1 className="text-base font-semibold text-foreground sm:text-lg">Create Account</h1>
-            <p className="mt-0.5 text-[11px] text-ust-gray-600 sm:text-xs">Register with your employee details</p>
+            <p className="mt-0.5 text-[11px] text-ust-gray-600 sm:text-xs">UST PassMint &middot; Register with your employee details</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-3.5">
@@ -83,28 +126,32 @@ export default function RegisterPage() {
 
             <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 sm:gap-4">
               <div className="space-y-1.5">
-                <Label htmlFor="employeeId">Employee ID</Label>
-                <Input id="employeeId" name="employeeId" placeholder="EMP001" value={form.employeeId} onChange={handleChange} required className="border-ust-gray-400" />
+                <Label htmlFor="employeeId">Employee ID *</Label>
+                <Input id="employeeId" name="employeeId" placeholder="EMP001" value={form.employeeId} onChange={handleChange} required className={`${fieldErrors.employeeId ? 'border-error' : 'border-ust-gray-400'}`} />
+                {fieldErrors.employeeId && <p className="text-error text-[10px] font-medium mt-0.5">{fieldErrors.employeeId}</p>}
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="name">Full Name</Label>
-                <Input id="name" name="name" placeholder="John Doe" value={form.name} onChange={handleChange} required className="border-ust-gray-400" />
+                <Label htmlFor="name">Full Name *</Label>
+                <Input id="name" name="name" placeholder="John Doe" value={form.name} onChange={handleChange} required className={`${fieldErrors.name ? 'border-error' : 'border-ust-gray-400'}`} />
+                {fieldErrors.name && <p className="text-error text-[10px] font-medium mt-0.5">{fieldErrors.name}</p>}
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" name="email" type="email" placeholder="john@company.com" value={form.email} onChange={handleChange} required className="border-ust-gray-400" />
+              <Label htmlFor="email">Email *</Label>
+              <Input id="email" name="email" type="email" placeholder="john@company.com" value={form.email} onChange={handleChange} required className={`${fieldErrors.email ? 'border-error' : 'border-ust-gray-400'}`} />
+              {fieldErrors.email && <p className="text-error text-[10px] font-medium mt-0.5">{fieldErrors.email}</p>}
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">Password *</Label>
               <div className="relative">
-                <Input id="password" name="password" type={showPassword ? 'text' : 'password'} placeholder="Min 6 characters" value={form.password} onChange={handleChange} required minLength={6} className="border-ust-gray-400 pr-10" />
+                <Input id="password" name="password" type={showPassword ? 'text' : 'password'} placeholder="Min 6 characters" value={form.password} onChange={handleChange} required minLength={6} className={`${fieldErrors.password ? 'border-error' : 'border-ust-gray-400'} pr-10`} />
                 <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-ust-gray-500 hover:text-ust-gray-700 cursor-pointer border-0 bg-transparent p-0">
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
+              {fieldErrors.password && <p className="text-error text-[10px] font-medium mt-0.5">{fieldErrors.password}</p>}
             </div>
 
             <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 sm:gap-4">

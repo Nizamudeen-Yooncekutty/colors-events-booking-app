@@ -23,6 +23,7 @@ export default function EventDetailPage() {
   const [registering, setRegistering] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [formErrors, setFormErrors] = useState({});
 
   useEffect(() => {
     api.get(`/events/${id}`)
@@ -43,7 +44,20 @@ export default function EventDetailPage() {
       .finally(() => setLoading(false));
   }, [id, navigate]);
 
+  const validateForm = () => {
+    const errors = {};
+    if (event.foodOptions?.length > 0 && !selectedFood) {
+      errors.food = 'Please select a food preference';
+    }
+    if (event.timeSlots?.length > 0 && !selectedSlot) {
+      errors.slot = 'Please select a time slot';
+    }
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleRegister = async () => {
+    if (!validateForm()) return;
     setError('');
     setRegistering(true);
     try {
@@ -241,7 +255,7 @@ export default function EventDetailPage() {
                   <div className="mb-3">
                     <p className="mb-2 text-xs font-medium text-foreground flex items-center gap-1.5">
                       <Clock className="h-3 w-3 text-primary" />
-                      Choose your time slot
+                      Choose your time slot *
                     </p>
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       {event.timeSlots.map((slot) => {
@@ -274,13 +288,16 @@ export default function EventDetailPage() {
                         );
                       })}
                     </div>
+                    {formErrors.slot && (
+                      <p className="text-error text-[10px] font-medium mt-0.5">{formErrors.slot}</p>
+                    )}
                   </div>
                 )}
                 {event.foodOptions?.length > 0 && (
                   <div className="mb-3">
                     <p className="mb-2 text-xs font-medium text-foreground flex items-center gap-1.5">
                       <UtensilsCrossed className="h-3 w-3 text-primary" />
-                      Choose your food preference
+                      Choose your food preference *
                     </p>
                     <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                       {event.foodOptions.map((opt) => (
@@ -300,9 +317,12 @@ export default function EventDetailPage() {
                         </button>
                       ))}
                     </div>
+                    {formErrors.food && (
+                      <p className="text-error text-[10px] font-medium mt-0.5">{formErrors.food}</p>
+                    )}
                   </div>
                 )}
-                <Button size="lg" className="w-full gap-2 text-sm" onClick={handleRegister} disabled={registering || (event.timeSlots?.length > 0 && !selectedSlot)}>
+                <Button size="lg" className="w-full gap-2 text-sm" onClick={handleRegister} disabled={registering}>
                   {registering ? (
                     <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />Registering...</>
                   ) : (

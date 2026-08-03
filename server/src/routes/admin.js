@@ -1,9 +1,11 @@
 const express = require('express');
+const { body, param, query } = require('express-validator');
 const Employee = require('../models/Employee');
 const Event = require('../models/Event');
 const Booking = require('../models/Booking');
 const WalkIn = require('../models/WalkIn');
 const { protect, adminOnly } = require('../middleware/auth');
+const { handleValidationErrors } = require('../middleware/validate');
 
 const router = express.Router();
 
@@ -55,12 +57,16 @@ router.get('/dashboard', protect, adminOnly, async (req, res) => {
       recentEvents,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'An error occurred. Please try again.' });
   }
 });
 
 // GET /api/admin/events/:eventId/bookings - list bookings for an event
-router.get('/events/:eventId/bookings', protect, adminOnly, async (req, res) => {
+router.get('/events/:eventId/bookings', protect, adminOnly, [
+  param('eventId').isMongoId().withMessage('Invalid event ID'),
+  query('status').optional().isIn(['confirmed', 'checked_in', 'cancelled']).withMessage('Invalid status filter'),
+  query('role').optional().isIn(['employee', 'admin', 'volunteer']).withMessage('Invalid role filter'),
+], handleValidationErrors, async (req, res) => {
   try {
     const { status, food, search, slot } = req.query;
     const filter = { event: req.params.eventId };
@@ -93,12 +99,14 @@ router.get('/events/:eventId/bookings', protect, adminOnly, async (req, res) => 
 
     res.json({ bookings, stats });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'An error occurred. Please try again.' });
   }
 });
 
 // GET /api/admin/events/:eventId/report - comprehensive event report with classification
-router.get('/events/:eventId/report', protect, adminOnly, async (req, res) => {
+router.get('/events/:eventId/report', protect, adminOnly, [
+  param('eventId').isMongoId().withMessage('Invalid event ID'),
+], handleValidationErrors, async (req, res) => {
   try {
     const event = await Event.findById(req.params.eventId).lean();
     if (!event) return res.status(404).json({ message: 'Event not found' });
@@ -200,12 +208,14 @@ router.get('/events/:eventId/report', protect, adminOnly, async (req, res) => {
       walkIns,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'An error occurred. Please try again.' });
   }
 });
 
 // GET /api/admin/events/:eventId/report/download - download CSV report
-router.get('/events/:eventId/report/download', protect, adminOnly, async (req, res) => {
+router.get('/events/:eventId/report/download', protect, adminOnly, [
+  param('eventId').isMongoId().withMessage('Invalid event ID'),
+], handleValidationErrors, async (req, res) => {
   try {
     const event = await Event.findById(req.params.eventId).lean();
     if (!event) return res.status(404).json({ message: 'Event not found' });
@@ -284,12 +294,14 @@ router.get('/events/:eventId/report/download', protect, adminOnly, async (req, r
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(csv);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'An error occurred. Please try again.' });
   }
 });
 
 // GET /api/admin/employees - list all employees
-router.get('/employees', protect, adminOnly, async (req, res) => {
+router.get('/employees', protect, adminOnly, [
+  query('role').optional().isIn(['employee', 'admin', 'volunteer']).withMessage('Invalid role filter'),
+], handleValidationErrors, async (req, res) => {
   try {
     const { search, role } = req.query;
     const filter = {};
@@ -311,17 +323,17 @@ router.get('/employees', protect, adminOnly, async (req, res) => {
 
     res.json({ employees, total: employees.length });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'An error occurred. Please try again.' });
   }
 });
 
 // PATCH /api/admin/employees/:id/role - change employee role
-router.patch('/employees/:id/role', protect, adminOnly, async (req, res) => {
+router.patch('/employees/:id/role', protect, adminOnly, [
+  param('id').isMongoId().withMessage('Invalid employee ID'),
+  body('role').isIn(['employee', 'admin', 'volunteer']).withMessage('Invalid role'),
+], handleValidationErrors, async (req, res) => {
   try {
     const { role } = req.body;
-    if (!['employee', 'admin', 'volunteer'].includes(role)) {
-      return res.status(400).json({ message: 'Invalid role' });
-    }
 
     const employee = await Employee.findByIdAndUpdate(
       req.params.id,
@@ -335,7 +347,7 @@ router.patch('/employees/:id/role', protect, adminOnly, async (req, res) => {
 
     res.json({ employee });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'An error occurred. Please try again.' });
   }
 });
 

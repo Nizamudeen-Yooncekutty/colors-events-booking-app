@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowLeft, Plus, X, Save, Clock } from 'lucide-react';
+import { DatePicker } from '@/components/ui/date-picker';
 
 export default function EditEventPage() {
   const { eventId } = useParams();
@@ -16,6 +17,7 @@ export default function EditEventPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
   const [form, setForm] = useState({
     title: '',
     description: '',
@@ -75,6 +77,7 @@ export default function EditEventPage() {
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
+    setFieldErrors(prev => ({ ...prev, [e.target.name]: '' }));
   };
 
   const addFoodOption = () => {
@@ -91,10 +94,36 @@ export default function EditEventPage() {
     setFoodOptions(updated);
   };
 
+  const validateAll = () => {
+    const errors = {};
+    if (!form.title.trim()) {
+      errors.title = 'Event Title is required';
+    } else if (form.title.trim().length < 2 || form.title.trim().length > 200) {
+      errors.title = 'Event Title must be 2-200 characters';
+    }
+    if (!form.eventDate) {
+      errors.eventDate = 'Event Date is required';
+    }
+    if (!form.venue.trim()) {
+      errors.venue = 'Venue is required';
+    } else if (form.venue.trim().length < 2 || form.venue.trim().length > 200) {
+      errors.venue = 'Venue must be 2-200 characters';
+    }
+    if (!form.registrationStart) {
+      errors.registrationStart = 'Registration Start is required';
+    }
+    if (!form.registrationEnd) {
+      errors.registrationEnd = 'Registration End is required';
+    }
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
+    if (!validateAll()) return;
     setSaving(true);
     try {
       const payload = {
@@ -151,8 +180,9 @@ export default function EditEventPage() {
               )}
 
               <div className="space-y-1.5">
-                <Label htmlFor="title">Event Title</Label>
-                <Input id="title" name="title" value={form.title} onChange={handleChange} required className="border-ust-gray-400" />
+                <Label htmlFor="title">Event Title *</Label>
+                <Input id="title" name="title" value={form.title} onChange={handleChange} required className={`${fieldErrors.title ? 'border-error' : 'border-ust-gray-400'}`} />
+                {fieldErrors.title && <p className="text-error text-[10px] font-medium mt-0.5">{fieldErrors.title}</p>}
               </div>
 
               <div className="space-y-1.5">
@@ -170,23 +200,42 @@ export default function EditEventPage() {
 
               <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 sm:gap-4">
                 <div className="space-y-1.5">
-                  <Label htmlFor="eventDate">Event Date</Label>
-                  <Input id="eventDate" name="eventDate" type="date" value={form.eventDate} onChange={handleChange} required className="border-ust-gray-400" />
+                  <Label htmlFor="eventDate">Event Date *</Label>
+                  <DatePicker
+                    value={form.eventDate}
+                    onChange={(e) => handleChange({ target: { name: 'eventDate', value: e.target.value } })}
+                    placeholder="Select event date"
+                    hasError={!!fieldErrors.eventDate}
+                  />
+                  {fieldErrors.eventDate && <p className="text-error text-[10px] font-medium mt-0.5">{fieldErrors.eventDate}</p>}
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="venue">Venue</Label>
-                  <Input id="venue" name="venue" value={form.venue} onChange={handleChange} required className="border-ust-gray-400" />
+                  <Label htmlFor="venue">Venue *</Label>
+                  <Input id="venue" name="venue" value={form.venue} onChange={handleChange} required className={`${fieldErrors.venue ? 'border-error' : 'border-ust-gray-400'}`} />
+                  {fieldErrors.venue && <p className="text-error text-[10px] font-medium mt-0.5">{fieldErrors.venue}</p>}
                 </div>
               </div>
 
               <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 sm:gap-4">
                 <div className="space-y-1.5">
-                  <Label htmlFor="registrationStart">Registration Opens</Label>
-                  <Input id="registrationStart" name="registrationStart" type="date" value={form.registrationStart} onChange={handleChange} required className="border-ust-gray-400" />
+                  <Label htmlFor="registrationStart">Registration Start *</Label>
+                  <DatePicker
+                    value={form.registrationStart}
+                    onChange={(e) => handleChange({ target: { name: 'registrationStart', value: e.target.value } })}
+                    placeholder="Select start date"
+                    hasError={!!fieldErrors.registrationStart}
+                  />
+                  {fieldErrors.registrationStart && <p className="text-error text-[10px] font-medium mt-0.5">{fieldErrors.registrationStart}</p>}
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="registrationEnd">Registration Closes</Label>
-                  <Input id="registrationEnd" name="registrationEnd" type="date" value={form.registrationEnd} onChange={handleChange} required className="border-ust-gray-400" />
+                  <Label htmlFor="registrationEnd">Registration End *</Label>
+                  <DatePicker
+                    value={form.registrationEnd}
+                    onChange={(e) => handleChange({ target: { name: 'registrationEnd', value: e.target.value } })}
+                    placeholder="Select end date"
+                    hasError={!!fieldErrors.registrationEnd}
+                  />
+                  {fieldErrors.registrationEnd && <p className="text-error text-[10px] font-medium mt-0.5">{fieldErrors.registrationEnd}</p>}
                 </div>
               </div>
 

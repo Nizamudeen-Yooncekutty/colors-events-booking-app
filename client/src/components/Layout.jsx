@@ -63,8 +63,7 @@ export default function Layout() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
                 </svg>
               </div>
-              <span className="hidden xs:inline"><span className="font-bold">Colors</span> Booking</span>
-              <span className="xs:hidden font-bold">CB</span>
+              <span><span className="font-bold">UST</span> PassMint</span>
             </Link>
 
             {/* Desktop Nav */}
@@ -216,6 +215,14 @@ export default function Layout() {
           <Outlet />
         </motion.div>
       </main>
+
+      {/* ── Powered by ── */}
+      <footer className="py-3 text-center">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 px-3.5 py-1 shadow-sm">
+          <svg className="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" /></svg>
+          <span className="text-[10px] text-white sm:text-xs">Powered by Color <span className="font-bold">Orange</span></span>
+        </span>
+      </footer>
     </div>
   );
 }

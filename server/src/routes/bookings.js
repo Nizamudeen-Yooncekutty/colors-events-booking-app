@@ -1,15 +1,28 @@
 const express = require('express');
+const rateLimit = require('express-rate-limit');
+const { body, param } = require('express-validator');
 const Booking = require('../models/Booking');
 const Event = require('../models/Event');
 const Employee = require('../models/Employee');
 const { protect, adminOrVolunteer } = require('../middleware/auth');
+const { handleValidationErrors } = require('../middleware/validate');
 const { generateQRData, generateQRImage, getSlotColor, isWalkInQR } = require('../utils/qrcode');
 const { sendBookingConfirmation } = require('../utils/email');
 
 const router = express.Router();
 
+const scanLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  message: { message: 'Too many scan attempts, please slow down' },
+});
+
 // POST /api/bookings - register for an event
-router.post('/', protect, async (req, res) => {
+router.post('/', protect, [
+  body('eventId').isMongoId().withMessage('Invalid event ID'),
+  body('foodPreference').isString().trim().isLength({ min: 1, max: 100 }).withMessage('Food preference is required (max 100 chars)'),
+  body('timeSlotId').optional().isMongoId().withMessage('Invalid time slot ID'),
+], handleValidationErrors, async (req, res) => {
   try {
     const { eventId, foodPreference, timeSlotId } = req.body;
 
@@ -122,7 +135,7 @@ router.post('/', protect, async (req, res) => {
     if (error.code === 11000) {
       return res.status(400).json({ message: 'You have already registered for this event' });
     }
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'An error occurred. Please try again.' });
   }
 });
 
@@ -134,12 +147,14 @@ router.get('/my', protect, async (req, res) => {
       .sort({ createdAt: -1 });
     res.json({ bookings });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'An error occurred. Please try again.' });
   }
 });
 
 // GET /api/bookings/:id - get single booking with QR
-router.get('/:id', protect, async (req, res) => {
+router.get('/:id', protect, [
+  param('id').isMongoId().withMessage('Invalid booking ID'),
+], handleValidationErrors, async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id)
       .populate('employee', 'name employeeId email department')
@@ -159,12 +174,14 @@ router.get('/:id', protect, async (req, res) => {
 
     res.json({ booking });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'An error occurred. Please try again.' });
   }
 });
 
 // DELETE /api/bookings/:id - cancel booking
-router.delete('/:id', protect, async (req, res) => {
+router.delete('/:id', protect, [
+  param('id').isMongoId().withMessage('Invalid booking ID'),
+], handleValidationErrors, async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id);
     if (!booking) {
@@ -187,12 +204,14 @@ router.delete('/:id', protect, async (req, res) => {
 
     res.json({ message: 'Booking cancelled', booking });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'An error occurred. Please try again.' });
   }
 });
 
 // POST /api/bookings/scan - scan QR to check in (admin/volunteer only)
-router.post('/scan', protect, adminOrVolunteer, async (req, res) => {
+router.post('/scan', protect, adminOrVolunteer, scanLimiter, [
+  body('qrData').isString().trim().isLength({ min: 1, max: 500 }).withMessage('QR data is required (max 500 chars)'),
+], handleValidationErrors, async (req, res) => {
   try {
     const { qrData } = req.body;
 
@@ -240,17 +259,19 @@ router.post('/scan', protect, adminOrVolunteer, async (req, res) => {
       booking,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'An error occurred. Please try again.' });
   }
 });
 
 // POST /api/bookings/lookup - lookup by employee ID for fallback check-in
-router.post('/lookup', protect, adminOrVolunteer, async (req, res) => {
+router.post('/lookup', protect, adminOrVolunteer, [
+  body('employeeId').isString().trim().isLength({ min: 1, max: 20 }).isAlphanumeric().withMessage('Employee ID must be alphanumeric (max 20 chars)'),
+], handleValidationErrors, async (req, res) => {
   try {
     const { employeeId, eventId } = req.body;
 
     const employee = await Employee.findOne({
-      employeeId: { $regex: new RegExp(`^${employeeId}$`, 'i') },
+      employeeId: employeeId.trim().toUpperCase(),
     });
     if (!employee) {
       return res.status(404).json({ message: 'Employee not found' });
@@ -270,7 +291,7 @@ router.post('/lookup', protect, adminOrVolunteer, async (req, res) => {
 
     res.json({ bookings });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'An error occurred. Please try again.' });
   }
 });
 
