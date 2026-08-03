@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Html5Qrcode } from 'html5-qrcode';
 import api from '@/lib/api';
 import { formatDate } from '@/lib/utils';
-import { playSuccessBeep, playErrorBeep } from '@/lib/beep';
+import { playSuccessBeep, playErrorBeep, playWarningBeep } from '@/lib/beep';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import {
   ScanLine, CheckCircle2, XCircle, Camera, CameraOff,
   User, Hash, UtensilsCrossed, Building2, Clock, Search,
-  CalendarDays, MapPin, Phone, Mail, UserPlus, Users,
+  CalendarDays, MapPin, Phone, Mail, UserPlus, Users, AlertTriangle,
 } from 'lucide-react';
 import { sanitizeName, sanitizePhone, sanitizeEmployeeId, sanitizeEmail } from '@/lib/sanitize';
 
@@ -126,12 +126,23 @@ export default function ScannerPage() {
         return;
       }
 
-      playErrorBeep();
-      setResult({
-        success: false,
-        message: data?.message || 'Scan failed',
-        booking: data?.booking,
-      });
+      const isAlreadyCheckedIn = data?.message?.startsWith('Already checked in');
+      if (isAlreadyCheckedIn) {
+        playWarningBeep();
+        setResult({
+          success: false,
+          alreadyCheckedIn: true,
+          message: data.message,
+          booking: data.booking,
+        });
+      } else {
+        playErrorBeep();
+        setResult({
+          success: false,
+          message: data?.message || 'Scan failed',
+          booking: data?.booking,
+        });
+      }
     }
   };
 
@@ -727,20 +738,27 @@ export default function ScannerPage() {
             exit={{ opacity: 0, y: -15 }}
             className="mt-4 sm:mt-5"
           >
-            <Card className={`border-2 ${result.success ? 'border-success' : 'border-error'}`}>
+            <Card className={`border-2 ${result.success ? 'border-success' : result.alreadyCheckedIn ? 'border-amber-400' : 'border-error'}`}>
               <CardHeader className="pb-2 p-3 sm:p-5 sm:pb-2">
                 <div className="flex items-center gap-2.5">
                   {result.success ? (
                     <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 300 }}>
                       <CheckCircle2 className="h-8 w-8 text-success sm:h-10 sm:w-10" />
                     </motion.div>
+                  ) : result.alreadyCheckedIn ? (
+                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 300 }}>
+                      <AlertTriangle className="h-8 w-8 text-amber-500 sm:h-10 sm:w-10" />
+                    </motion.div>
                   ) : (
                     <XCircle className="h-8 w-8 text-error sm:h-10 sm:w-10" />
                   )}
                   <div>
-                    <CardTitle className={`text-sm sm:text-base ${result.success ? 'text-green-700' : 'text-error'}`}>
-                      {result.message}
+                    <CardTitle className={`text-sm sm:text-base ${result.success ? 'text-green-700' : result.alreadyCheckedIn ? 'text-amber-600' : 'text-error'}`}>
+                      {result.alreadyCheckedIn ? 'Already Checked In' : result.message}
                     </CardTitle>
+                    {result.alreadyCheckedIn && (
+                      <p className="text-xs text-amber-600 mt-0.5">{result.message}</p>
+                    )}
                     {result.typeCount != null && (
                       <p className="text-xs text-muted-foreground mt-0.5">
                         Total {ATTENDEE_TYPES.find(t => t.value === result.attendeeType)?.label || 'walk-in'}s: {result.typeCount}

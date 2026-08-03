@@ -35,6 +35,26 @@ export function playSuccessBeep() {
   } catch {}
 }
 
+export function playWarningBeep() {
+  try {
+    const ctx = getAudioContext();
+    const now = ctx.currentTime;
+
+    for (let i = 0; i < 3; i++) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(600, now + i * 0.15);
+      gain.gain.setValueAtTime(0.25, now + i * 0.15);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.15 + 0.1);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + i * 0.15);
+      osc.stop(now + i * 0.15 + 0.1);
+    }
+  } catch {}
+}
+
 export function playErrorBeep() {
   try {
     const ctx = getAudioContext();
