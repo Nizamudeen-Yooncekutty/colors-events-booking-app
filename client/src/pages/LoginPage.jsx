@@ -38,21 +38,16 @@ export default function LoginPage() {
     return Object.keys(errors).length === 0;
   };
 
-  const handleSSOLogin = async () => {
+  const handleSSOLogin = () => {
     if (!msalInstance) return;
     setError('');
     setSsoLoading(true);
-    try {
-      const response = await msalInstance.loginPopup(loginRequest);
-      const data = await loginWithSSO(response.idToken);
-      navigate(data.employee.role === 'admin' ? '/admin' : '/events');
-    } catch (err) {
-      if (err.errorCode !== 'user_cancelled') {
-        setError(err.response?.data?.message || err.message || 'SSO login failed');
-      }
-    } finally {
+    msalInstance.loginRedirect(loginRequest).catch((err) => {
       setSsoLoading(false);
-    }
+      if (err.errorCode !== 'user_cancelled') {
+        setError(err.message || 'SSO login failed');
+      }
+    });
   };
 
   const handleSubmit = async (e) => {

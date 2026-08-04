@@ -3,6 +3,7 @@ const ENV_CONFIG = {
     clientId: import.meta.env.VITE_MSAL_CLIENT_ID || '',
     tenantId: import.meta.env.VITE_MSAL_TENANT_ID || '',
     redirectUri: import.meta.env.VITE_MSAL_REDIRECT_URI || 'http://localhost:5173',
+    // Azure AD app registration must have this URI listed
   },
 };
 

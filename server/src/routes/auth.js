@@ -139,8 +139,10 @@ router.post('/sso', async (req, res) => {
     const roleUser = await RoleUser.findOne({ email, isActive: true });
     const role = roleUser ? roleUser.role : 'employee';
 
-    // Find or create the employee record
-    let employee = await Employee.findOne({ email });
+    // Find by email or employeeId (SSO user may already exist from manual registration)
+    let employee = await Employee.findOne({
+      $or: [{ email }, { employeeId }],
+    });
 
     if (!employee) {
       employee = await Employee.create({
@@ -153,6 +155,10 @@ router.post('/sso', async (req, res) => {
         phone: '',
       });
     } else {
+      // Sync email if they registered with employeeId but different email
+      if (employee.email !== email) {
+        employee.email = email;
+      }
       // Update role if changed in RoleUser collection
       if (employee.role !== role) {
         employee.role = role;
@@ -171,6 +177,7 @@ router.post('/sso', async (req, res) => {
       token: generateToken(employee._id),
     });
   } catch (error) {
+    console.error('SSO auth error:', error.name, error.message, error.code);
     if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
       return res.status(401).json({ message: 'Invalid or expired SSO token' });
     }
