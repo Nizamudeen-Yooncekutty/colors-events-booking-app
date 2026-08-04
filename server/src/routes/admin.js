@@ -64,8 +64,8 @@ router.get('/dashboard', protect, adminOnly, async (req, res) => {
 // GET /api/admin/events/:eventId/bookings - list bookings for an event
 router.get('/events/:eventId/bookings', protect, adminOnly, [
   param('eventId').isMongoId().withMessage('Invalid event ID'),
-  query('status').optional().isIn(['confirmed', 'checked_in', 'cancelled']).withMessage('Invalid status filter'),
-  query('role').optional().isIn(['employee', 'admin', 'volunteer']).withMessage('Invalid role filter'),
+  query('status').optional({ values: 'falsy' }).isIn(['confirmed', 'checked_in', 'cancelled']).withMessage('Invalid status filter'),
+  query('role').optional({ values: 'falsy' }).isIn(['employee', 'admin', 'volunteer']).withMessage('Invalid role filter'),
 ], handleValidationErrors, async (req, res) => {
   try {
     const { status, food, search, slot } = req.query;

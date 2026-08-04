@@ -38,20 +38,27 @@ export default function AdminEventPage() {
 
   const fetchData = async () => {
     try {
-      const [eventRes, bookingsRes, walkInRes] = await Promise.all([
+      const [eventRes, bookingsRes, walkInRes] = await Promise.allSettled([
         api.get(`/events/${eventId}`),
         api.get(`/admin/events/${eventId}/bookings`, {
-          params: { search, status: filterStatus, slot: filterSlot || undefined },
+          params: { search: search || undefined, status: filterStatus || undefined, slot: filterSlot || undefined },
         }),
         api.get(`/walkins/event/${eventId}`, {
-          params: { search },
+          params: { search: search || undefined },
         }),
       ]);
-      setEvent(eventRes.data.event);
-      setBookings(bookingsRes.data.bookings);
-      setStats(bookingsRes.data.stats);
-      setWalkIns(walkInRes.data.walkIns);
-      setWalkInStats(walkInRes.data.stats);
+
+      if (eventRes.status === 'fulfilled') {
+        setEvent(eventRes.value.data.event);
+      }
+      if (bookingsRes.status === 'fulfilled') {
+        setBookings(bookingsRes.value.data.bookings);
+        setStats(bookingsRes.value.data.stats);
+      }
+      if (walkInRes.status === 'fulfilled') {
+        setWalkIns(walkInRes.value.data.walkIns);
+        setWalkInStats(walkInRes.value.data.stats);
+      }
     } catch {
       console.error('Failed to fetch data');
     } finally {
