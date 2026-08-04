@@ -15,6 +15,7 @@ import {
   Bell,
 } from 'lucide-react';
 import { useState } from 'react';
+import { useMsalInstance } from '@/auth/useMsalSafe';
 
 export default function Layout() {
   const { employee, logout } = useAuth();
@@ -22,10 +23,15 @@ export default function Layout() {
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const msalInstance = useMsalInstance();
 
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    if (msalInstance) {
+      msalInstance.logoutRedirect({ postLogoutRedirectUri: window.location.origin + '/login' }).catch(() => {});
+    } else {
+      navigate('/login');
+    }
   };
 
   const isAdmin = employee?.role === 'admin';

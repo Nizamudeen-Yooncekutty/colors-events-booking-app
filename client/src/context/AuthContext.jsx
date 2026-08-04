@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import api from '@/lib/api';
+import { authenticateWithSSO } from '@/auth/authService';
 
 const AuthContext = createContext(null);
 
@@ -7,7 +8,6 @@ function isTokenExpired(token) {
   try {
     const payload = JSON.parse(atob(token.split('.')[1]));
     if (!payload.exp) return false;
-    // Add 5-second buffer for clock skew
     return payload.exp * 1000 < Date.now() - 5000;
   } catch {
     return true;
@@ -22,7 +22,6 @@ export function AuthProvider({ children }) {
     const token = localStorage.getItem('token');
     const stored = localStorage.getItem('employee');
     if (token && stored) {
-      // Check if token is expired before making API call
       if (isTokenExpired(token)) {
         localStorage.removeItem('token');
         localStorage.removeItem('employee');
@@ -30,7 +29,6 @@ export function AuthProvider({ children }) {
         return;
       }
       setEmployee(JSON.parse(stored));
-      // Verify token is still valid on server
       api.get('/auth/me')
         .then(res => {
           setEmployee(res.data.employee);
@@ -55,6 +53,14 @@ export function AuthProvider({ children }) {
     return res.data;
   };
 
+  const loginWithSSO = async (idToken) => {
+    const data = await authenticateWithSSO(idToken);
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('employee', JSON.stringify(data.employee));
+    setEmployee(data.employee);
+    return data;
+  };
+
   const register = async (data) => {
     const res = await api.post('/auth/register', data);
     localStorage.setItem('token', res.data.token);
@@ -70,7 +76,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ employee, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ employee, loading, login, loginWithSSO, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

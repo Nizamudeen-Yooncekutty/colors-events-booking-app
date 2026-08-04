@@ -6,8 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { ArrowRight, Eye, EyeOff, Shield } from 'lucide-react';
 import { sanitizeEmployeeId } from '@/lib/sanitize';
+import { loginRequest } from '@/auth/msalConfig';
+import { useMsalInstance } from '@/auth/useMsalSafe';
 
 export default function LoginPage() {
   const [employeeId, setEmployeeId] = useState('');
@@ -15,9 +17,12 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [ssoLoading, setSsoLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
-  const { login } = useAuth();
+  const { login, loginWithSSO } = useAuth();
   const navigate = useNavigate();
+  const msalInstance = useMsalInstance();
+  const ssoEnabled = !!msalInstance;
 
   const validateAll = () => {
     const errors = {};
@@ -31,6 +36,23 @@ export default function LoginPage() {
     }
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
+  };
+
+  const handleSSOLogin = async () => {
+    if (!msalInstance) return;
+    setError('');
+    setSsoLoading(true);
+    try {
+      const response = await msalInstance.loginPopup(loginRequest);
+      const data = await loginWithSSO(response.idToken);
+      navigate(data.employee.role === 'admin' ? '/admin' : '/events');
+    } catch (err) {
+      if (err.errorCode !== 'user_cancelled') {
+        setError(err.response?.data?.message || err.message || 'SSO login failed');
+      }
+    } finally {
+      setSsoLoading(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -151,6 +173,37 @@ export default function LoginPage() {
                 </>
               )}
             </Button>
+
+            {ssoEnabled && (
+              <>
+                <div className="flex items-center gap-3">
+                  <Separator className="flex-1" />
+                  <span className="text-[11px] text-ust-gray-500 sm:text-xs">OR</span>
+                  <Separator className="flex-1" />
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full gap-2 rounded-full text-sm border-ust-gray-400"
+                  size="lg"
+                  onClick={handleSSOLogin}
+                  disabled={ssoLoading}
+                >
+                  {ssoLoading ? (
+                    <>
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                      Connecting...
+                    </>
+                  ) : (
+                    <>
+                      <Shield className="h-4 w-4 text-primary" />
+                      Sign in with UST SSO
+                    </>
+                  )}
+                </Button>
+              </>
+            )}
 
             <div className="flex items-center gap-3">
               <Separator className="flex-1" />

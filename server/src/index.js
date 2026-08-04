@@ -5,6 +5,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const hpp = require('hpp');
+const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
 const connectDB = require('./config/db');
 const { sanitizeInputs } = require('./middleware/sanitize');
@@ -56,6 +57,9 @@ app.use(morgan('dev'));
 // Body parsing with limits
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: false, limit: '2mb' }));
+
+// Cookie parser
+app.use(cookieParser());
 
 // HTTP parameter pollution protection
 app.use(hpp());

@@ -4,6 +4,7 @@ const Employee = require('../models/Employee');
 const Event = require('../models/Event');
 const Booking = require('../models/Booking');
 const WalkIn = require('../models/WalkIn');
+const RoleUser = require('../models/RoleUser');
 const { protect, adminOnly } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validate');
 
@@ -346,6 +347,76 @@ router.patch('/employees/:id/role', protect, adminOnly, [
     }
 
     res.json({ employee });
+  } catch (error) {
+    res.status(500).json({ message: 'An error occurred. Please try again.' });
+  }
+});
+
+// GET /api/admin/role-users - list all role users (admins/volunteers)
+router.get('/role-users', protect, adminOnly, async (req, res) => {
+  try {
+    const roleUsers = await RoleUser.find().sort({ role: 1, email: 1 });
+    res.json({ roleUsers });
+  } catch (error) {
+    res.status(500).json({ message: 'An error occurred. Please try again.' });
+  }
+});
+
+// POST /api/admin/role-users - add a role user
+router.post('/role-users', protect, adminOnly, [
+  body('email').trim().isEmail().withMessage('Valid email is required').normalizeEmail(),
+  body('role').isIn(['admin', 'volunteer']).withMessage('Role must be admin or volunteer'),
+  body('name').optional().trim().isLength({ max: 100 }),
+], handleValidationErrors, async (req, res) => {
+  try {
+    const { email, role, name } = req.body;
+
+    const existing = await RoleUser.findOne({ email });
+    if (existing) {
+      existing.role = role;
+      existing.name = name || existing.name;
+      existing.isActive = true;
+      await existing.save();
+
+      // Sync the Employee record role too
+      await Employee.findOneAndUpdate({ email }, { role });
+
+      return res.json({ message: 'Role user updated', roleUser: existing });
+    }
+
+    const roleUser = await RoleUser.create({
+      email,
+      role,
+      name: name || '',
+      addedBy: req.employee.name,
+    });
+
+    // Sync the Employee record role if they exist
+    await Employee.findOneAndUpdate({ email }, { role });
+
+    res.status(201).json({ message: 'Role user added', roleUser });
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({ message: 'This email already has a role assigned' });
+    }
+    res.status(500).json({ message: 'An error occurred. Please try again.' });
+  }
+});
+
+// DELETE /api/admin/role-users/:id - remove a role user (revert to employee)
+router.delete('/role-users/:id', protect, adminOnly, [
+  param('id').isMongoId().withMessage('Invalid ID'),
+], handleValidationErrors, async (req, res) => {
+  try {
+    const roleUser = await RoleUser.findByIdAndDelete(req.params.id);
+    if (!roleUser) {
+      return res.status(404).json({ message: 'Role user not found' });
+    }
+
+    // Revert the Employee record to employee role
+    await Employee.findOneAndUpdate({ email: roleUser.email }, { role: 'employee' });
+
+    res.json({ message: 'Role user removed, reverted to employee' });
   } catch (error) {
     res.status(500).json({ message: 'An error occurred. Please try again.' });
   }

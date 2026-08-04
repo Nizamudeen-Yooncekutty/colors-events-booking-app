@@ -1,8 +1,10 @@
 const express = require('express');
 const { body } = require('express-validator');
 const Employee = require('../models/Employee');
+const RoleUser = require('../models/RoleUser');
 const { protect, generateToken } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validate');
+const { verifyAzureToken } = require('../utils/azureAuth');
 
 const router = express.Router();
 
@@ -111,6 +113,68 @@ router.post('/login', loginValidation, async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: 'Login failed. Please try again.' });
+  }
+});
+
+// POST /api/auth/sso - authenticate via Azure AD SSO token
+router.post('/sso', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ message: 'No token provided' });
+    }
+
+    const idToken = authHeader.split(' ')[1];
+    const decoded = await verifyAzureToken(idToken);
+
+    if (!decoded.preferred_username && !decoded.email) {
+      return res.status(401).json({ message: 'Invalid token: no email found' });
+    }
+
+    const email = (decoded.preferred_username || decoded.email).toLowerCase();
+    const name = decoded.name || email.split('@')[0];
+    const employeeId = email.split('@')[0].toUpperCase();
+
+    // Check if user has a special role (admin/volunteer) in RoleUser collection
+    const roleUser = await RoleUser.findOne({ email, isActive: true });
+    const role = roleUser ? roleUser.role : 'employee';
+
+    // Find or create the employee record
+    let employee = await Employee.findOne({ email });
+
+    if (!employee) {
+      employee = await Employee.create({
+        employeeId,
+        name,
+        email,
+        password: require('crypto').randomBytes(32).toString('hex'),
+        role,
+        department: '',
+        phone: '',
+      });
+    } else {
+      // Update role if changed in RoleUser collection
+      if (employee.role !== role) {
+        employee.role = role;
+        await employee.save();
+      }
+      if (!employee.isActive) {
+        return res.status(401).json({ message: 'Account is deactivated' });
+      }
+    }
+
+    const safeEmployee = employee.toObject();
+    delete safeEmployee.password;
+
+    res.json({
+      employee: safeEmployee,
+      token: generateToken(employee._id),
+    });
+  } catch (error) {
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      return res.status(401).json({ message: 'Invalid or expired SSO token' });
+    }
+    res.status(500).json({ message: 'SSO authentication failed. Please try again.' });
   }
 });
 
