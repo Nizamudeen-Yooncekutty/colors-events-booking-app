@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
-    "seed": "node src/seed.js"
+    "seed": "node src/seed.js",
+    "test": "jest --verbose --forceExit"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -27,6 +28,9 @@
     "xss": "^1.0.15"
   },
   "devDependencies": {
-    "nodemon": "^3.1.7"
+    "jest": "^30.4.2",
+    "mongodb-memory-server": "^11.2.0",
+    "nodemon": "^3.1.7",
+    "supertest": "^7.2.2"
   }
 }
