@@ -11,9 +11,13 @@ const { sendBookingConfirmation } = require('../utils/email');
 
 const router = express.Router();
 
+// QR scan: 120 req / 1 min per IP — volunteers scan rapidly during check-in
+const isLoadTest = process.env.LOAD_TEST === 'true';
 const scanLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 60,
+  max: isLoadTest ? 100000 : 120,
+  standardHeaders: true,
+  legacyHeaders: false,
   message: { message: 'Too many scan attempts, please slow down' },
 });
 
