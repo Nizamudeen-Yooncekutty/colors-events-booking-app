@@ -70,7 +70,14 @@ export default function BookingPassPage() {
     { icon: Building2, label: 'Department', value: booking.employee?.department || '—' },
     { icon: CalendarDays, label: 'Event Date', value: formatDate(booking.event?.eventDate) },
     { icon: MapPin, label: 'Venue', value: booking.event?.venue },
-    ...(booking.timeSlotLabel ? [{ icon: Clock, label: 'Time Slot', value: booking.timeSlotLabel }] : []),
+    ...(booking.timeSlotLabel ? [{
+      icon: Clock,
+      label: 'Time Slot',
+      value: (() => {
+        const slot = booking.event?.timeSlots?.find(s => s._id === booking.timeSlot?.toString() || s._id?.toString() === booking.timeSlot?.toString());
+        return slot ? `${booking.timeSlotLabel} (${slot.startTime} – ${slot.endTime})` : booking.timeSlotLabel;
+      })(),
+    }] : []),
     { icon: UtensilsCrossed, label: 'Food', value: booking.foodPreference },
   ];
 
@@ -91,11 +98,14 @@ export default function BookingPassPage() {
           <div className={`bg-gradient-to-r ${theme.gradient} px-4 py-4 text-center text-white sm:px-6 sm:py-5`}>
             <h2 className="text-base font-bold sm:text-lg">{booking.event?.title}</h2>
             <p className="mt-0.5 text-[10px] text-white/80 sm:text-xs">Digital Event Token</p>
-            {booking.timeSlotLabel && (
-              <span className="mt-2 inline-block rounded-full bg-white/20 px-3 py-0.5 text-[10px] font-medium backdrop-blur-sm sm:text-xs">
-                {booking.timeSlotLabel}
-              </span>
-            )}
+            {booking.timeSlotLabel && (() => {
+              const slot = booking.event?.timeSlots?.find(s => s._id === booking.timeSlot?.toString() || s._id?.toString() === booking.timeSlot?.toString());
+              return (
+                <span className="mt-2 inline-block rounded-full bg-white/20 px-3 py-0.5 text-[10px] font-medium backdrop-blur-sm sm:text-xs">
+                  {booking.timeSlotLabel}{slot ? ` · ${slot.startTime} – ${slot.endTime}` : ''}
+                </span>
+              );
+            })()}
           </div>
 
           <CardContent className="p-4 sm:p-5">
