@@ -67,20 +67,21 @@ app.use(hpp());
 // Input sanitization (XSS, SQL/NoSQL injection)
 app.use(sanitizeInputs);
 
-// Rate limiting - general
+// Rate limiting (disabled during load testing via LOAD_TEST=true)
+const isLoadTest = process.env.LOAD_TEST === 'true';
+
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 200,
+  max: isLoadTest ? 100000 : 200,
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: 'Too many requests, please try again later' },
 });
 app.use('/api/', limiter);
 
-// Stricter rate limit for auth endpoints
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20,
+  max: isLoadTest ? 100000 : 20,
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: 'Too many login attempts, please try again later' },

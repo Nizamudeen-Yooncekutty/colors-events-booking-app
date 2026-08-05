@@ -96,13 +96,17 @@ function recordResult(res) {
 }
 
 async function registerAndBook(i) {
-  const id = `LT${Date.now().toString(36)}${i}`.substring(0, 20);
-  const email = `lt${Date.now()}${i}@test.com`;
+  const names = ['Arun','Priya','Vikram','Sneha','Rohit','Meera','Arjun','Pooja','Sanjay','Nisha','Deepak','Kavitha','Suresh','Riya','Amit'];
+  const surnames = ['Kumar','Nair','Joshi','Reddy','Verma','Krishnan','Nambiar','Gupta','Patel','Thomas','Srinivasan','Rao','Menon','Chopra','Das'];
+  const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
+  const id = `LT${rand}${i}`.substring(0, 20);
+  const email = `lt${rand}${i}@test.com`;
+  const name = `${names[i % names.length]} ${surnames[i % surnames.length]}`;
 
   // Register
   const regRes = await request('POST', '/api/auth/register', {
     employeeId: id,
-    name: `Load User ${i}`,
+    name,
     email,
     password: 'Test123456',
     department: 'LoadTest',
@@ -154,11 +158,19 @@ async function setup() {
   }
   adminToken = loginRes.data.token;
 
-  // Get first active event
+  // Get first event with open registration
   const eventsRes = await request('GET', '/api/events', null, adminToken);
-  const events = eventsRes.data?.events?.filter(e => e.status === 'active') || [];
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const events = (eventsRes.data?.events || []).filter(e => {
+    if (e.status !== 'active') return false;
+    const start = new Date(e.registrationStart);
+    const end = new Date(e.registrationEnd);
+    return today >= new Date(start.getFullYear(), start.getMonth(), start.getDate()) &&
+           today <= new Date(end.getFullYear(), end.getMonth(), end.getDate());
+  });
   if (events.length === 0) {
-    console.error('No active events found. Run: npm run seed');
+    console.error('No events with open registration found. Create one or update registration dates.');
     process.exit(1);
   }
   eventId = events[0]._id;
