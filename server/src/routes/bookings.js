@@ -11,11 +11,11 @@ const { sendBookingConfirmation } = require('../utils/email');
 
 const router = express.Router();
 
-// QR scan: 120 req / 1 min per IP — volunteers scan rapidly during check-in
+// QR scan: 300 req / 1 min per IP — volunteers scan rapidly during check-in
 const isLoadTest = process.env.LOAD_TEST === 'true';
 const scanLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: isLoadTest ? 100000 : 120,
+  max: isLoadTest ? 100000 : 300,
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: 'Too many scan attempts, please slow down' },
@@ -105,7 +105,7 @@ router.post('/', protect, [
       }
     }
 
-    // Generate QR with slot-specific color
+    // Generate QR data (lightweight string) — image is generated on-demand when viewing pass
     const slotIndex = selectedSlot
       ? event.timeSlots.findIndex(s => s._id.toString() === selectedSlot._id.toString())
       : null;
@@ -113,7 +113,6 @@ router.post('/', protect, [
 
     const tempId = Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
     const qrData = generateQRData(tempId, req.employee.employeeId, eventId);
-    const qrCode = await generateQRImage(qrData, slotIndex);
 
     const booking = await Booking.create({
       employee: req.employee._id,
@@ -122,7 +121,7 @@ router.post('/', protect, [
       timeSlotLabel: selectedSlot ? selectedSlot.label : '',
       slotColor: slotColor ? slotColor.dark : '',
       foodPreference,
-      qrCode,
+      qrCode: '',
       qrData,
     });
 
@@ -174,6 +173,15 @@ router.get('/:id', protect, [
       !['admin', 'volunteer'].includes(req.employee.role)
     ) {
       return res.status(403).json({ message: 'Access denied' });
+    }
+
+    // Generate QR image on-demand if not yet generated
+    if (!booking.qrCode && booking.qrData) {
+      const slotIndex = booking.timeSlot && booking.event?.timeSlots
+        ? booking.event.timeSlots.findIndex(s => s._id.toString() === booking.timeSlot.toString())
+        : null;
+      booking.qrCode = await generateQRImage(booking.qrData, slotIndex >= 0 ? slotIndex : null);
+      await booking.save();
     }
 
     res.json({ booking });

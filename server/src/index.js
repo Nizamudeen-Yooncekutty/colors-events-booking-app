@@ -79,20 +79,20 @@ const rl = (max, windowMs, msg) => rateLimit({
   message: { message: msg },
 });
 
-// Global: 1000 req / 1 min per IP — handles burst during event registration
-app.use('/api/', rl(1000, 60 * 1000, 'Too many requests, please try again later'));
+// Global: 5000 req / 1 min per IP — peak: 10K users burst during event registration
+app.use('/api/', rl(5000, 60 * 1000, 'Too many requests, please try again later'));
 
-// Auth: 10 attempts / 5 min per IP — brute-force protection
-const authLimiter = rl(10, 5 * 60 * 1000, 'Too many login attempts, please try again in 5 minutes');
+// Auth: 15 attempts / 5 min per IP — brute-force protection (SSO handles most logins)
+const authLimiter = rl(15, 5 * 60 * 1000, 'Too many login attempts, please try again in 5 minutes');
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
-app.use('/api/auth/sso', rl(20, 5 * 60 * 1000, 'Too many SSO attempts, please try again'));
+app.use('/api/auth/sso', rl(30, 5 * 60 * 1000, 'Too many SSO attempts, please try again'));
 
-// Booking creation: 30 req / 1 min per IP — prevents spam registration
-app.use('/api/bookings', rl(30, 60 * 1000, 'Too many booking requests, please slow down'));
+// Booking creation: 100 req / 1 min per IP — allows rapid registration during peak
+app.use('/api/bookings', rl(100, 60 * 1000, 'Too many booking requests, please slow down'));
 
-// Admin: 200 req / 1 min per IP — dashboard, reports, management
-app.use('/api/admin', rl(200, 60 * 1000, 'Too many requests, please try again later'));
+// Admin: 500 req / 1 min per IP — dashboard polling, reports, management
+app.use('/api/admin', rl(500, 60 * 1000, 'Too many requests, please try again later'));
 
 // Routes
 app.use('/api/auth', authRoutes);

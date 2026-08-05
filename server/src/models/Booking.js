@@ -30,8 +30,7 @@ const bookingSchema = new mongoose.Schema({
   },
   qrCode: {
     type: String,
-    unique: true,
-    required: true,
+    default: '',
   },
   qrData: {
     type: String,
