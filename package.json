@@ -18,10 +18,21 @@
     "loadtest:scan": "node loadtest/load-test.js scan 100 1000",
     "loadtest:mixed": "node loadtest/load-test.js mixed 100 1000",
     "loadtest:artillery:register": "npx artillery run loadtest/artillery-registration.yml",
-    "loadtest:artillery:scan": "npx artillery run loadtest/artillery-scanning.yml"
+    "loadtest:artillery:scan": "npx artillery run loadtest/artillery-scanning.yml",
+    "start:cluster": "pm2-runtime ecosystem.config.js",
+    "start:pm2": "pm2 start ecosystem.config.js",
+    "stop:pm2": "pm2 delete all",
+    "status:pm2": "pm2 status",
+    "docker:up": "docker compose up -d --build",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
+    "docker:scale": "docker compose up -d --build --scale api-1=1 --scale api-2=1 --scale api-3=1"
   },
   "devDependencies": {
     "artillery": "^2.0.33",
     "concurrently": "^9.0.1"
+  },
+  "dependencies": {
+    "pm2": "^7.0.3"
   }
 }
