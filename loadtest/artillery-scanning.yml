@@ -1,0 +1,55 @@
+config:
+  target: "http://localhost:5000"
+  phases:
+    # Warm-up
+    - duration: 30
+      arrivalRate: 10
+      name: "Warm-up"
+    # Ramp to peak: simulate volunteers scanning walk-in QRs
+    - duration: 60
+      arrivalRate: 10
+      rampTo: 100
+      name: "Ramp to 100/sec"
+    # Sustained peak: 100 scans/sec for 2 minutes
+    - duration: 120
+      arrivalRate: 100
+      name: "Sustained 100 scans/sec"
+  defaults:
+    headers:
+      Content-Type: "application/json"
+  # Pre-set admin credentials (update these before running)
+  variables:
+    adminId: "ADMIN001"
+    adminPassword: "admin123"
+
+scenarios:
+  - name: "Login and scan walk-in QR"
+    flow:
+      # Login as admin/volunteer
+      - post:
+          url: "/api/auth/login"
+          json:
+            employeeId: "{{ adminId }}"
+            password: "{{ adminPassword }}"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+
+      # Get events to find event ID
+      - get:
+          url: "/api/events"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          capture:
+            - json: "$.events[0]._id"
+              as: "eventId"
+
+      # Scan walk-in QR (guest type) — each scan creates a new walk-in
+      - post:
+          url: "/api/walkins/scan"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          json:
+            qrData: "WALKIN:guest:{{ eventId }}"
+          expect:
+            - statusCode: 201

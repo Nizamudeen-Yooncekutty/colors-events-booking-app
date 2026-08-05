@@ -9,9 +9,19 @@
     "seed": "cd server && npm run seed",
     "build": "cd client && npm install --include=dev && npm run build && cd ../server && npm install",
     "start": "cd server && node src/index.js",
-    "install:all": "cd server && npm install && cd ../client && npm install"
+    "install:all": "cd server && npm install && cd ../client && npm install",
+    "test": "cd server && npm test && cd ../client && npm test",
+    "test:server": "cd server && npm test",
+    "test:client": "cd client && npm test",
+    "loadtest": "node loadtest/load-test.js",
+    "loadtest:register": "node loadtest/load-test.js register 100 1000",
+    "loadtest:scan": "node loadtest/load-test.js scan 100 1000",
+    "loadtest:mixed": "node loadtest/load-test.js mixed 100 1000",
+    "loadtest:artillery:register": "npx artillery run loadtest/artillery-registration.yml",
+    "loadtest:artillery:scan": "npx artillery run loadtest/artillery-scanning.yml"
   },
   "devDependencies": {
+    "artillery": "^2.0.33",
     "concurrently": "^9.0.1"
   }
 }

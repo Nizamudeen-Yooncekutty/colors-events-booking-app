@@ -1,0 +1,60 @@
+config:
+  target: "http://localhost:5000"
+  phases:
+    # Warm-up: 10 users/sec for 30 seconds
+    - duration: 30
+      arrivalRate: 10
+      name: "Warm-up"
+    # Ramp to peak: 10→100 users/sec over 60 seconds
+    - duration: 60
+      arrivalRate: 10
+      rampTo: 100
+      name: "Ramp to 100/sec"
+    # Sustained peak: 100 users/sec for 120 seconds (~12,000 registrations)
+    - duration: 120
+      arrivalRate: 100
+      name: "Sustained 100/sec"
+  defaults:
+    headers:
+      Content-Type: "application/json"
+
+scenarios:
+  - name: "Register employee and book event"
+    flow:
+      # Step 1: Register a new employee
+      - post:
+          url: "/api/auth/register"
+          json:
+            employeeId: "LOAD{{ $randomNumber(10000, 99999) }}{{ $randomNumber(100, 999) }}"
+            name: "Load Test User {{ $randomNumber(1, 99999) }}"
+            email: "loadtest{{ $randomNumber(10000, 99999) }}{{ $randomNumber(100, 999) }}@test.com"
+            password: "Test123456"
+            department: "Engineering"
+            phone: "+91{{ $randomNumber(1000000000, 9999999999) }}"
+          capture:
+            - json: "$.token"
+              as: "authToken"
+          expect:
+            - statusCode: 201
+
+      # Step 2: List events
+      - get:
+          url: "/api/events"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          capture:
+            - json: "$.events[0]._id"
+              as: "eventId"
+            - json: "$.events[0].foodOptions[0].name"
+              as: "foodPref"
+
+      # Step 3: Register for the event (creates QR)
+      - post:
+          url: "/api/bookings"
+          headers:
+            Authorization: "Bearer {{ authToken }}"
+          json:
+            eventId: "{{ eventId }}"
+            foodPreference: "{{ foodPref }}"
+          expect:
+            - statusCode: 201
