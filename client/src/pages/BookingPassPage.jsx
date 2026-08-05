@@ -32,10 +32,23 @@ export default function BookingPassPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get(`/bookings/${id}`)
-      .then(res => setBooking(res.data.booking))
-      .catch(() => navigate('/my-bookings'))
-      .finally(() => setLoading(false));
+    let retryTimer = null;
+
+    const fetchBooking = () => {
+      api.get(`/bookings/${id}`)
+        .then(res => {
+          setBooking(res.data.booking);
+          // If QR not ready yet, retry in 2 seconds
+          if (!res.data.booking.qrCode) {
+            retryTimer = setTimeout(fetchBooking, 2000);
+          }
+        })
+        .catch(() => navigate('/my-bookings'))
+        .finally(() => setLoading(false));
+    };
+
+    fetchBooking();
+    return () => { if (retryTimer) clearTimeout(retryTimer); };
   }, [id, navigate]);
 
   if (loading) {
@@ -100,7 +113,14 @@ export default function BookingPassPage() {
                   border: `3px solid ${theme.border}`,
                 }}
               >
-                <img src={booking.qrCode} alt="QR Pass" className="h-36 w-36 sm:h-44 sm:w-44" />
+                {booking.qrCode ? (
+                  <img src={booking.qrCode} alt="QR Pass" className="h-36 w-36 sm:h-44 sm:w-44" />
+                ) : (
+                  <div className="h-36 w-36 sm:h-44 sm:w-44 flex flex-col items-center justify-center bg-ust-gray-200 rounded-lg">
+                    <div className="h-6 w-6 animate-spin rounded-full border-3 border-primary border-t-transparent mb-2" />
+                    <p className="text-[10px] text-muted-foreground sm:text-xs">Generating QR...</p>
+                  </div>
+                )}
               </div>
             </motion.div>
 

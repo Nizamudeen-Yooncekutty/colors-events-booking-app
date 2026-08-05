@@ -130,6 +130,11 @@ router.post('/', protect, [
       { path: 'event', select: 'title eventDate venue' },
     ]);
 
+    // Generate QR image in background (non-blocking)
+    generateQRImage(qrData, slotIndex).then(qrCode => {
+      Booking.findByIdAndUpdate(booking._id, { qrCode }).catch(() => {});
+    }).catch(() => {});
+
     // Send confirmation email (non-blocking)
     sendBookingConfirmation(req.employee, event, booking);
 
