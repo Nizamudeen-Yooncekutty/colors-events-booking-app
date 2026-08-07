@@ -7,6 +7,15 @@ dist
 .vercel
 *.log
 
+# SSL certificates
+server/certs/
+
 # Architecture diagrams
 architecture-diagram*.html
 architecture-diagram*.pdf
+
+# Claude tooling
+.claude/
+
+# Test artifacts
+e2e-test-scenarios.csv
