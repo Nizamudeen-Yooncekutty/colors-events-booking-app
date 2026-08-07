@@ -16,6 +16,7 @@ import {
   CalendarDays, MapPin, Phone, Mail, UserPlus, Users, AlertTriangle,
 } from 'lucide-react';
 import { sanitizeName, sanitizePhone, sanitizeEmployeeId, sanitizeEmail } from '@/lib/sanitize';
+import { getSlotColor } from '@/lib/slotColors';
 
 const ATTENDEE_TYPES = [
   { value: 'guest', label: 'Guest', color: 'bg-blue-100 text-blue-700' },
@@ -276,6 +277,7 @@ export default function ScannerPage() {
       { icon: CalendarDays, label: 'Event', value: booking.event?.title },
       { icon: CalendarDays, label: 'Date', value: formatDate(booking.event?.eventDate) },
       { icon: MapPin, label: 'Venue', value: booking.event?.venue },
+      ...(booking.event?.location ? [{ icon: MapPin, label: 'Location', value: booking.event.location }] : []),
       ...(booking.timeSlotLabel ? [{ icon: Clock, label: 'Time Slot', value: booking.timeSlotLabel }] : []),
       { icon: UtensilsCrossed, label: 'Food', value: booking.foodPreference },
     ];
@@ -379,6 +381,28 @@ export default function ScannerPage() {
           );
         })}
       </div>
+
+      {/* Slot Color Legend */}
+      {selectedEvent?.timeSlots?.length > 0 && (
+        <Card className="mb-3">
+          <CardContent className="p-2.5 sm:p-3">
+            <p className="text-[10px] font-medium text-muted-foreground mb-1.5 sm:text-xs">QR Color Legend — {selectedEvent.title}</p>
+            <div className="flex flex-wrap gap-2">
+              {selectedEvent.timeSlots.map((slot, index) => {
+                const color = getSlotColor(index);
+                return (
+                  <div key={slot._id} className="flex items-center gap-1.5 rounded-full px-2.5 py-1" style={{ backgroundColor: color + '15' }}>
+                    <span className="inline-block h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                    <span className="text-[10px] font-medium sm:text-xs" style={{ color }}>
+                      {slot.label} ({slot.startTime}–{slot.endTime})
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* QR Scan Tab */}
       {activeTab === 'scan' && (

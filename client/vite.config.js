@@ -11,9 +11,10 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
+    host: true,
+    port: 5000,
     proxy: {
-      '/api': 'http://localhost:5000',
+      '/api': 'http://localhost:5001',
     },
   },
   test: {

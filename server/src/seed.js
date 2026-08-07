@@ -3,7 +3,8 @@ const mongoose = require('mongoose');
 const Employee = require('./models/Employee');
 const Event = require('./models/Event');
 const Booking = require('./models/Booking');
-const { generateQRData, generateQRImage } = require('./utils/qrcode');
+const { generateQRData, generateQRImage, getSlotColor } = require('./utils/qrcode');
+const WalkIn = require('./models/WalkIn');
 
 const seed = async () => {
   try {
@@ -11,6 +12,7 @@ const seed = async () => {
     console.log('Connected to MongoDB');
 
     // Clear existing data for a fresh seed
+    await WalkIn.deleteMany({});
     await Booking.deleteMany({});
     await Event.deleteMany({});
     await Employee.deleteMany({});
@@ -85,9 +87,14 @@ const seed = async () => {
         description: 'Join us for the grand Diwali celebration with traditional food, music, rangoli, and festivities! Bring your family and enjoy an evening of lights and joy.',
         eventDate: new Date('2026-10-20'),
         venue: 'Main Auditorium, Building A',
+        location: 'UST Global Campus, Thiruvananthapuram',
         registrationStart: new Date('2026-06-15'),
         registrationEnd: new Date('2026-10-18'),
         maxCapacity: 5000,
+        timeSlots: [
+          { label: 'Evening Session', startTime: '17:00', endTime: '19:00', maxCapacity: 2500 },
+          { label: 'Night Session', startTime: '19:00', endTime: '21:00', maxCapacity: 2500 },
+        ],
         foodOptions: [
           { name: 'Vegetarian', description: 'Pure veg thali with sweets' },
           { name: 'Non-Vegetarian', description: 'Non-veg thali with sweets' },
@@ -118,9 +125,14 @@ const seed = async () => {
         description: 'Experience the grand Onam Sadya served on banana leaves! Traditional Kerala feast with 26 dishes, Pookalam, and Thiruvathira dance.',
         eventDate: new Date('2026-08-26'),
         venue: 'Open Ground, Campus 2',
+        location: 'UST Global Campus, Thiruvananthapuram',
         registrationStart: new Date('2026-06-10'),
         registrationEnd: new Date('2026-08-24'),
         maxCapacity: 4000,
+        timeSlots: [
+          { label: 'Morning Batch', startTime: '11:00', endTime: '13:00', maxCapacity: 2000 },
+          { label: 'Afternoon Batch', startTime: '13:00', endTime: '15:00', maxCapacity: 2000 },
+        ],
         foodOptions: [
           { name: 'Traditional Sadya', description: 'Full 26-dish banana leaf sadya' },
           { name: 'Mini Sadya', description: 'Lighter version with 15 dishes' },
@@ -148,9 +160,15 @@ const seed = async () => {
         description: 'Patriotic celebration with tricolor-themed lunch, flag hoisting, and cultural programs. All employees welcome!',
         eventDate: new Date('2026-08-15'),
         venue: 'Main Lawn, Building A',
+        location: 'UST Global Campus, Thiruvananthapuram',
         registrationStart: new Date('2026-07-15'),
         registrationEnd: new Date('2026-08-13'),
         maxCapacity: 6000,
+        timeSlots: [
+          { label: 'Batch 1', startTime: '12:00', endTime: '13:00', maxCapacity: 2000 },
+          { label: 'Batch 2', startTime: '13:00', endTime: '14:00', maxCapacity: 2000 },
+          { label: 'Batch 3', startTime: '14:00', endTime: '15:00', maxCapacity: 2000 },
+        ],
         foodOptions: [
           { name: 'North Indian', description: 'Chole bhature, biryani, gulab jamun' },
           { name: 'South Indian', description: 'Dosa, sambar rice, payasam' },
@@ -194,46 +212,46 @@ const seed = async () => {
     const indDay = eventMap['Independence Day Lunch 2026'];
 
     const bookingData = [
-      // Diwali bookings
-      { empId: 'EMP001', event: diwali, food: 'Vegetarian' },
-      { empId: 'EMP002', event: diwali, food: 'Non-Vegetarian' },
-      { empId: 'EMP003', event: diwali, food: 'Vegetarian' },
-      { empId: 'EMP004', event: diwali, food: 'Vegan' },
-      { empId: 'EMP005', event: diwali, food: 'Non-Vegetarian' },
-      { empId: 'EMP006', event: diwali, food: 'Jain' },
-      { empId: 'EMP007', event: diwali, food: 'Vegetarian' },
-      { empId: 'EMP008', event: diwali, food: 'Non-Vegetarian' },
-      { empId: 'EMP010', event: diwali, food: 'Vegetarian' },
-      { empId: 'EMP012', event: diwali, food: 'Non-Vegetarian' },
-      { empId: 'EMP014', event: diwali, food: 'Vegan' },
-      { empId: 'EMP015', event: diwali, food: 'Vegetarian' },
-      { empId: 'VOL001', event: diwali, food: 'Vegetarian' },
-      { empId: 'VOL002', event: diwali, food: 'Non-Vegetarian' },
+      // Diwali bookings (slot 0 = Evening, slot 1 = Night)
+      { empId: 'EMP001', event: diwali, food: 'Vegetarian', slotIdx: 0 },
+      { empId: 'EMP002', event: diwali, food: 'Non-Vegetarian', slotIdx: 0 },
+      { empId: 'EMP003', event: diwali, food: 'Vegetarian', slotIdx: 1 },
+      { empId: 'EMP004', event: diwali, food: 'Vegan', slotIdx: 1 },
+      { empId: 'EMP005', event: diwali, food: 'Non-Vegetarian', slotIdx: 0 },
+      { empId: 'EMP006', event: diwali, food: 'Jain', slotIdx: 1 },
+      { empId: 'EMP007', event: diwali, food: 'Vegetarian', slotIdx: 0 },
+      { empId: 'EMP008', event: diwali, food: 'Non-Vegetarian', slotIdx: 1 },
+      { empId: 'EMP010', event: diwali, food: 'Vegetarian', slotIdx: 0 },
+      { empId: 'EMP012', event: diwali, food: 'Non-Vegetarian', slotIdx: 1 },
+      { empId: 'EMP014', event: diwali, food: 'Vegan', slotIdx: 0 },
+      { empId: 'EMP015', event: diwali, food: 'Vegetarian', slotIdx: 1 },
+      { empId: 'VOL001', event: diwali, food: 'Vegetarian', slotIdx: 0 },
+      { empId: 'VOL002', event: diwali, food: 'Non-Vegetarian', slotIdx: 1 },
 
-      // Onam bookings
-      { empId: 'EMP001', event: onam, food: 'Traditional Sadya' },
-      { empId: 'EMP002', event: onam, food: 'Traditional Sadya' },
-      { empId: 'EMP004', event: onam, food: 'Mini Sadya' },
-      { empId: 'EMP006', event: onam, food: 'Traditional Sadya' },
-      { empId: 'EMP009', event: onam, food: 'Traditional Sadya' },
-      { empId: 'EMP010', event: onam, food: 'Mini Sadya' },
-      { empId: 'EMP011', event: onam, food: 'Traditional Sadya' },
-      { empId: 'EMP013', event: onam, food: 'Mini Sadya' },
-      { empId: 'EMP016', event: onam, food: 'Traditional Sadya' },
-      { empId: 'EMP018', event: onam, food: 'Traditional Sadya' },
+      // Onam bookings (slot 0 = Morning, slot 1 = Afternoon)
+      { empId: 'EMP001', event: onam, food: 'Traditional Sadya', slotIdx: 0 },
+      { empId: 'EMP002', event: onam, food: 'Traditional Sadya', slotIdx: 0 },
+      { empId: 'EMP004', event: onam, food: 'Mini Sadya', slotIdx: 1 },
+      { empId: 'EMP006', event: onam, food: 'Traditional Sadya', slotIdx: 0 },
+      { empId: 'EMP009', event: onam, food: 'Traditional Sadya', slotIdx: 1 },
+      { empId: 'EMP010', event: onam, food: 'Mini Sadya', slotIdx: 1 },
+      { empId: 'EMP011', event: onam, food: 'Traditional Sadya', slotIdx: 0 },
+      { empId: 'EMP013', event: onam, food: 'Mini Sadya', slotIdx: 1 },
+      { empId: 'EMP016', event: onam, food: 'Traditional Sadya', slotIdx: 0 },
+      { empId: 'EMP018', event: onam, food: 'Traditional Sadya', slotIdx: 1 },
 
-      // Independence Day bookings
-      { empId: 'EMP001', event: indDay, food: 'North Indian' },
-      { empId: 'EMP003', event: indDay, food: 'South Indian' },
-      { empId: 'EMP005', event: indDay, food: 'Street Food' },
-      { empId: 'EMP007', event: indDay, food: 'North Indian' },
-      { empId: 'EMP008', event: indDay, food: 'South Indian' },
-      { empId: 'EMP011', event: indDay, food: 'Street Food' },
-      { empId: 'EMP013', event: indDay, food: 'North Indian' },
-      { empId: 'EMP015', event: indDay, food: 'South Indian' },
-      { empId: 'EMP017', event: indDay, food: 'Street Food' },
-      { empId: 'EMP019', event: indDay, food: 'North Indian' },
-      { empId: 'EMP020', event: indDay, food: 'South Indian' },
+      // Independence Day bookings (slot 0 = Batch 1, slot 1 = Batch 2, slot 2 = Batch 3)
+      { empId: 'EMP001', event: indDay, food: 'North Indian', slotIdx: 0 },
+      { empId: 'EMP003', event: indDay, food: 'South Indian', slotIdx: 0 },
+      { empId: 'EMP005', event: indDay, food: 'Street Food', slotIdx: 1 },
+      { empId: 'EMP007', event: indDay, food: 'North Indian', slotIdx: 1 },
+      { empId: 'EMP008', event: indDay, food: 'South Indian', slotIdx: 2 },
+      { empId: 'EMP011', event: indDay, food: 'Street Food', slotIdx: 2 },
+      { empId: 'EMP013', event: indDay, food: 'North Indian', slotIdx: 0 },
+      { empId: 'EMP015', event: indDay, food: 'South Indian', slotIdx: 1 },
+      { empId: 'EMP017', event: indDay, food: 'Street Food', slotIdx: 2 },
+      { empId: 'EMP019', event: indDay, food: 'North Indian', slotIdx: 0 },
+      { empId: 'EMP020', event: indDay, food: 'South Indian', slotIdx: 1 },
     ];
 
     let bookingCount = 0;
@@ -247,12 +265,18 @@ const seed = async () => {
 
       const tempId = new mongoose.Types.ObjectId();
       const qrData = generateQRData(tempId.toString(), emp.employeeId, b.event._id.toString());
-      const qrCode = await generateQRImage(qrData);
+
+      const slot = b.slotIdx != null && b.event.timeSlots?.[b.slotIdx] ? b.event.timeSlots[b.slotIdx] : null;
+      const slotColor = slot ? getSlotColor(b.slotIdx) : null;
+      const qrCode = await generateQRImage(qrData, slot ? b.slotIdx : null);
 
       await Booking.create({
         _id: tempId,
         employee: emp._id,
         event: b.event._id,
+        timeSlot: slot ? slot._id : null,
+        timeSlotLabel: slot ? slot.label : '',
+        slotColor: slotColor ? slotColor.dark : '',
         foodPreference: b.food,
         qrData,
         qrCode,
@@ -277,6 +301,57 @@ const seed = async () => {
       }
     }
     console.log(`Check-ins: ${checkedInCount} bookings marked as checked_in`);
+
+    // ── Walk-ins ──
+    const vol = employeeMap['VOL001'];
+    const walkInData = [
+      // Diwali walk-ins
+      { event: diwali, name: 'Ramesh Guest', phone: '+91 99887 11001', attendeeType: 'guest', food: 'Vegetarian', slotIdx: 0 },
+      { event: diwali, name: 'Sita Guest', phone: '+91 99887 11002', attendeeType: 'guest', food: 'Non-Vegetarian', slotIdx: 1 },
+      { event: diwali, name: 'Mohan Staff', phone: '+91 99887 11003', attendeeType: 'staff', food: 'Vegetarian', slotIdx: 0 },
+      { event: diwali, name: 'Cleaning Crew 1', attendeeType: 'housekeeping', slotIdx: 0 },
+      { event: diwali, name: 'Cleaning Crew 2', attendeeType: 'housekeeping', slotIdx: 1 },
+      { event: diwali, name: 'Unregistered Dev', attendeeType: 'unregistered_employee', employeeId: 'UNREG001', department: 'Engineering', food: 'Vegetarian', slotIdx: 0 },
+
+      // Onam walk-ins
+      { event: onam, name: 'Visitor Anand', phone: '+91 99887 22001', attendeeType: 'guest', food: 'Traditional Sadya', slotIdx: 0 },
+      { event: onam, name: 'Visitor Lakshmi', phone: '+91 99887 22002', attendeeType: 'guest', food: 'Mini Sadya', slotIdx: 1 },
+      { event: onam, name: 'Visitor Gopal', phone: '+91 99887 22003', attendeeType: 'guest', food: 'Traditional Sadya', slotIdx: 0 },
+      { event: onam, name: 'Caterer Sunil', attendeeType: 'staff', food: 'Traditional Sadya', slotIdx: 0 },
+      { event: onam, name: 'Caterer Premi', attendeeType: 'staff', food: 'Mini Sadya', slotIdx: 1 },
+      { event: onam, name: 'Hall Keeper', attendeeType: 'housekeeping', slotIdx: 1 },
+      { event: onam, name: 'New Joiner Ravi', attendeeType: 'unregistered_employee', employeeId: 'UNREG002', department: 'QA', food: 'Traditional Sadya', slotIdx: 0 },
+      { event: onam, name: 'New Joiner Divya', attendeeType: 'unregistered_employee', employeeId: 'UNREG003', department: 'Design', food: 'Mini Sadya', slotIdx: 1 },
+
+      // Independence Day walk-ins
+      { event: indDay, name: 'VIP Guest 1', phone: '+91 99887 33001', attendeeType: 'guest', food: 'North Indian', slotIdx: 0 },
+      { event: indDay, name: 'VIP Guest 2', phone: '+91 99887 33002', attendeeType: 'guest', food: 'South Indian', slotIdx: 1 },
+      { event: indDay, name: 'Security Staff', attendeeType: 'staff', slotIdx: 2 },
+      { event: indDay, name: 'Ground Crew', attendeeType: 'housekeeping', slotIdx: 0 },
+    ];
+
+    let walkInCount = 0;
+    for (const w of walkInData) {
+      if (!w.event) continue;
+      const slot = w.slotIdx != null && w.event.timeSlots?.[w.slotIdx] ? w.event.timeSlots[w.slotIdx] : null;
+      const slotColor = slot ? getSlotColor(w.slotIdx, w.event.timeSlots.length) : null;
+      await WalkIn.create({
+        event: w.event._id,
+        name: w.name,
+        phone: w.phone || '',
+        email: w.email || '',
+        attendeeType: w.attendeeType,
+        department: w.department || '',
+        employeeId: w.employeeId || '',
+        foodPreference: w.food || '',
+        timeSlot: slot ? slot._id : null,
+        timeSlotLabel: slot ? slot.label : '',
+        slotColor: slotColor ? slotColor.dark : '',
+        checkedInBy: vol._id,
+      });
+      walkInCount++;
+    }
+    console.log(`Walk-ins: ${walkInCount} created`);
 
     // ── Summary ──
     console.log('\n═══════════════════════════════════════');

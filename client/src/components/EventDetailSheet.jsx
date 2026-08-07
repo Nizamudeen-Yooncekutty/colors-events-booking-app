@@ -161,6 +161,7 @@ export default function EventDetailSheet({
                   {[
                     { icon: CalendarDays, label: 'Event Date', value: formatDate(event.eventDate) },
                     { icon: MapPin, label: 'Venue', value: event.venue },
+                    ...(event.location ? [{ icon: MapPin, label: 'Location', value: event.location }] : []),
                     { icon: Users, label: 'Registrations', value: `${event.bookingCount}${event.maxCapacity > 0 ? ` / ${event.maxCapacity}` : ''}` },
                     { icon: CalendarDays, label: 'Reg. Window', value: `${formatDate(event.registrationStart)} – ${formatDate(event.registrationEnd)}` },
                   ].map((item) => {

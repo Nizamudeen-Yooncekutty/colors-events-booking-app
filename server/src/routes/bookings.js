@@ -106,10 +106,11 @@ router.post('/', protect, [
     }
 
     // Generate QR data (lightweight string) — image is generated on-demand when viewing pass
+    const totalSlots = event.timeSlots.length;
     const slotIndex = selectedSlot
       ? event.timeSlots.findIndex(s => s._id.toString() === selectedSlot._id.toString())
       : null;
-    const slotColor = selectedSlot ? getSlotColor(slotIndex) : null;
+    const slotColor = selectedSlot ? getSlotColor(slotIndex, totalSlots) : null;
 
     const tempId = Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
     const qrData = generateQRData(tempId, req.employee.employeeId, eventId);
@@ -127,11 +128,11 @@ router.post('/', protect, [
 
     const populated = await booking.populate([
       { path: 'employee', select: 'name employeeId email department' },
-      { path: 'event', select: 'title eventDate venue' },
+      { path: 'event', select: 'title eventDate venue location timeSlots' },
     ]);
 
     // Generate QR image in background (non-blocking)
-    generateQRImage(qrData, slotIndex).then(qrCode => {
+    generateQRImage(qrData, slotIndex, totalSlots).then(qrCode => {
       Booking.findByIdAndUpdate(booking._id, { qrCode }).catch(() => {});
     }).catch(() => {});
 
@@ -151,7 +152,7 @@ router.post('/', protect, [
 router.get('/my', protect, async (req, res) => {
   try {
     const bookings = await Booking.find({ employee: req.employee._id })
-      .populate('event', 'title eventDate venue status')
+      .populate('event', 'title eventDate venue location status timeSlots')
       .sort({ createdAt: -1 });
     res.json({ bookings });
   } catch (error) {
@@ -166,7 +167,7 @@ router.get('/:id', protect, [
   try {
     const booking = await Booking.findById(req.params.id)
       .populate('employee', 'name employeeId email department')
-      .populate('event', 'title eventDate venue status timeSlots');
+      .populate('event', 'title eventDate venue location status timeSlots');
 
     if (!booking) {
       return res.status(404).json({ message: 'Booking not found' });
@@ -242,7 +243,7 @@ router.post('/scan', protect, adminOrVolunteer, scanLimiter, [
 
     const booking = await Booking.findOne({ qrData })
       .populate('employee', 'name employeeId email department phone')
-      .populate('event', 'title eventDate venue timeSlots');
+      .populate('event', 'title eventDate venue location timeSlots');
 
     if (!booking) {
       return res.status(404).json({ message: 'Invalid QR code', valid: false });
@@ -299,7 +300,7 @@ router.post('/lookup', protect, adminOrVolunteer, [
 
     const bookings = await Booking.find(filter)
       .populate('employee', 'name employeeId email department phone')
-      .populate('event', 'title eventDate venue status timeSlots')
+      .populate('event', 'title eventDate venue location status timeSlots')
       .sort({ createdAt: -1 });
 
     if (bookings.length === 0) {

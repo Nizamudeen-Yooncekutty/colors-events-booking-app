@@ -14,6 +14,7 @@ import {
   UtensilsCrossed, Download, Pencil, Trash2, Clock,
   UserPlus, UsersRound, Building2, BarChart3, FileText, QrCode,
 } from 'lucide-react';
+import { getSlotColor } from '@/lib/slotColors';
 
 const ATTENDEE_TYPE_LABELS = {
   guest: { label: 'Guest', color: 'bg-blue-100 text-blue-700' },
@@ -217,25 +218,30 @@ export default function AdminEventPage() {
       )}
 
       {/* Slot breakdown */}
-      {event?.timeSlots?.length > 0 && (
+      {event?.timeSlots?.length > 0 && (() => {
+        return (
         <Card className="mb-4">
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-xs sm:text-sm">
               <Clock className="h-3.5 w-3.5 text-primary sm:h-4 sm:w-4" />
-              Time Slot Availability
+              Time Slot Availability &amp; QR Color Legend
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2 sm:gap-3">
-              {event.timeSlots.map(slot => {
+              {event.timeSlots.map((slot, index) => {
                 const booked = event.slotCounts?.[slot._id] || 0;
                 const isFull = slot.maxCapacity > 0 && booked >= slot.maxCapacity;
+                const color = getSlotColor(index);
                 return (
-                  <div key={slot._id} className={`rounded-md border px-3 py-1.5 text-center bg-white sm:px-4 sm:py-2 ${isFull ? 'border-error/40' : ''}`}>
-                    <p className={`text-base font-bold sm:text-lg ${isFull ? 'text-error' : 'text-primary'}`}>
+                  <div key={slot._id} className={`rounded-md border px-3 py-1.5 text-center bg-white sm:px-4 sm:py-2`} style={{ borderColor: color, borderWidth: '2px' }}>
+                    <div className="flex items-center justify-center gap-1.5 mb-1">
+                      <span className="inline-block h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                      <span className="text-[10px] font-semibold sm:text-xs" style={{ color }}>{slot.label}</span>
+                    </div>
+                    <p className={`text-base font-bold sm:text-lg ${isFull ? 'text-error' : ''}`} style={isFull ? {} : { color }}>
                       {booked}{slot.maxCapacity > 0 ? `/${slot.maxCapacity}` : ''}
                     </p>
-                    <p className="text-[10px] text-muted-foreground sm:text-xs">{slot.label}</p>
                     <p className="text-[9px] text-muted-foreground">{slot.startTime} – {slot.endTime}</p>
                   </div>
                 );
@@ -243,7 +249,8 @@ export default function AdminEventPage() {
             </div>
           </CardContent>
         </Card>
-      )}
+        );
+      })()}
 
       {/* Food breakdown */}
       {event?.foodBreakdown?.length > 0 && (

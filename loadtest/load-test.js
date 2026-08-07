@@ -20,7 +20,7 @@
 
 const http = require('http');
 
-const BASE = 'http://localhost:5000';
+const BASE = process.env.LOAD_TEST_URL || 'http://localhost';
 const SCENARIO = process.argv[2] || 'register';
 const CONCURRENCY = parseInt(process.argv[3]) || 50;
 const TOTAL = parseInt(process.argv[4]) || 500;

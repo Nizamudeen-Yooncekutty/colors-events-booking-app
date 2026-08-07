@@ -1,14 +1,26 @@
 const QRCode = require('qrcode');
 const crypto = require('crypto');
 
-const SLOT_COLORS = [
-  { dark: '#1a1a2e', light: '#f0f0f8' },
-  { dark: '#6A1B9A', light: '#F3E5F5' },
-  { dark: '#1565C0', light: '#E3F2FD' },
-  { dark: '#2E7D32', light: '#E8F5E9' },
-  { dark: '#E65100', light: '#FFF3E0' },
-  { dark: '#C62828', light: '#FFEBEE' },
-];
+function hslToHex(h, s, l) {
+  s /= 100; l /= 100;
+  const a = s * Math.min(l, 1 - l);
+  const f = n => {
+    const k = (n + h / 30) % 12;
+    const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+    return Math.round(255 * color).toString(16).padStart(2, '0');
+  };
+  return `#${f(0)}${f(8)}${f(4)}`;
+}
+
+function generateSlotColor(slotIndex, totalSlots) {
+  const goldenAngle = 137.508;
+  const hue = (slotIndex * goldenAngle) % 360;
+  const dark = hslToHex(hue, 70, 35);
+  const light = hslToHex(hue, 50, 95);
+  return { dark, light };
+}
+
+const DEFAULT_COLOR = { dark: '#1a1a2e', light: '#f0f0f8' };
 
 const WALKIN_TYPE_COLORS = {
   guest: { dark: '#1565C0', light: '#E3F2FD' },
@@ -17,9 +29,9 @@ const WALKIN_TYPE_COLORS = {
   unregistered_employee: { dark: '#E65100', light: '#FFF3E0' },
 };
 
-const getSlotColor = (slotIndex) => {
-  if (slotIndex == null || slotIndex < 0) return SLOT_COLORS[0];
-  return SLOT_COLORS[(slotIndex % (SLOT_COLORS.length - 1)) + 1];
+const getSlotColor = (slotIndex, totalSlots) => {
+  if (slotIndex == null || slotIndex < 0) return DEFAULT_COLOR;
+  return generateSlotColor(slotIndex, totalSlots || 5);
 };
 
 const generateQRData = (bookingId, employeeId, eventId) => {
@@ -45,8 +57,8 @@ const parseWalkInQR = (qrData) => {
   return { attendeeType: parts[1], eventId: parts[2] };
 };
 
-const generateQRImage = async (qrData, slotIndex) => {
-  const color = slotIndex != null ? getSlotColor(slotIndex) : SLOT_COLORS[0];
+const generateQRImage = async (qrData, slotIndex, totalSlots) => {
+  const color = slotIndex != null ? getSlotColor(slotIndex, totalSlots) : DEFAULT_COLOR;
   const qrImage = await QRCode.toDataURL(qrData, {
     width: 400,
     margin: 2,
@@ -60,7 +72,7 @@ const generateQRImage = async (qrData, slotIndex) => {
 };
 
 const generateWalkInQRImage = async (qrData, attendeeType) => {
-  const color = WALKIN_TYPE_COLORS[attendeeType] || SLOT_COLORS[0];
+  const color = WALKIN_TYPE_COLORS[attendeeType] || DEFAULT_COLOR;
   const qrImage = await QRCode.toDataURL(qrData, {
     width: 400,
     margin: 2,
@@ -74,7 +86,7 @@ const generateWalkInQRImage = async (qrData, attendeeType) => {
 };
 
 module.exports = {
-  generateQRData, generateQRImage, getSlotColor, SLOT_COLORS,
+  generateQRData, generateQRImage, getSlotColor, generateSlotColor,
   generateWalkInQRData, generateWalkInQRImage, isWalkInQR, parseWalkInQR,
   WALKIN_TYPE_COLORS,
 };

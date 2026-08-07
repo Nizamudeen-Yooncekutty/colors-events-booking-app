@@ -19,6 +19,7 @@ export default function CreateEventPage() {
     description: '',
     eventDate: '',
     venue: '',
+    location: '',
     registrationStart: '',
     registrationEnd: '',
     maxCapacity: '',
@@ -168,6 +169,11 @@ export default function CreateEventPage() {
                   <Input id="venue" name="venue" placeholder="Main Auditorium" value={form.venue} onChange={handleChange} required className={`${fieldErrors.venue ? 'border-error' : 'border-ust-gray-400'}`} />
                   {fieldErrors.venue && <p className="text-error text-[10px] font-medium mt-0.5">{fieldErrors.venue}</p>}
                 </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="location">Location</Label>
+                <Input id="location" name="location" placeholder="e.g. UST Global Campus, Thiruvananthapuram" value={form.location} onChange={handleChange} className="border-ust-gray-400" />
               </div>
 
               <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 sm:gap-4">

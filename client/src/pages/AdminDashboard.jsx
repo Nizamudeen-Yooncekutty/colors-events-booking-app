@@ -169,7 +169,7 @@ export default function AdminDashboard() {
                   transition={{ delay: index * 0.05 }}
                   className="flex flex-col gap-2.5 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4"
                 >
-                  <div className="space-y-1 min-w-0">
+                  <div className="space-y-1.5 min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-xs font-semibold text-foreground sm:text-sm">{event.title}</h3>
                       <Badge variant={
@@ -182,12 +182,45 @@ export default function AdminDashboard() {
                     </div>
                     <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground sm:text-xs">
                       <span>{formatDate(event.eventDate)}</span>
-                      <span>{event.bookingCount} bookings</span>
-                      <span>{event.checkedInCount} checked in</span>
+                      <span>{event.venue}</span>
+                    </div>
+
+                    {/* Per-event attendance stats */}
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      <span className="inline-flex items-center gap-1 rounded-md bg-primary-100 px-1.5 py-0.5 text-[10px] font-medium text-primary-700 sm:text-xs">
+                        <Ticket className="h-3 w-3" /> {event.bookingCount} bookings
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-md bg-green-50 px-1.5 py-0.5 text-[10px] font-medium text-green-700 sm:text-xs">
+                        <ScanLine className="h-3 w-3" /> {event.checkedInCount} checked in
+                      </span>
                       {event.walkInCount > 0 && (
-                        <span className="text-amber-600">{event.walkInCount} walk-ins</span>
+                        <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 sm:text-xs">
+                          <UserPlus className="h-3 w-3" /> {event.walkInCount} walk-ins
+                        </span>
+                      )}
+                      {event.totalAttended > 0 && (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-ust-gray-300 px-1.5 py-0.5 text-[10px] font-semibold text-foreground sm:text-xs">
+                          <UserCheck className="h-3 w-3" /> {event.totalAttended} total attended
+                        </span>
                       )}
                     </div>
+
+                    {/* Walk-in classification breakdown */}
+                    {event.walkInCount > 0 && event.walkInBreakdown && (
+                      <div className="flex flex-wrap gap-1.5 mt-1">
+                        {[
+                          { key: 'guest', label: 'Guests', color: 'text-blue-600 bg-blue-50' },
+                          { key: 'staff', label: 'Staff', color: 'text-amber-600 bg-amber-50' },
+                          { key: 'housekeeping', label: 'Housekeeping', color: 'text-purple-600 bg-purple-50' },
+                          { key: 'unregistered_employee', label: 'Unreg. Emp', color: 'text-orange-600 bg-orange-50' },
+                        ].filter(t => event.walkInBreakdown[t.key] > 0).map(t => (
+                          <span key={t.key} className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium ${t.color}`}>
+                            {t.label}: {event.walkInBreakdown[t.key]}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
                     {event.bookingCount > 0 && (
                       <div className="mt-1 h-1.5 w-full max-w-[180px] overflow-hidden rounded-full bg-ust-gray-300">
                         <div
@@ -201,7 +234,7 @@ export default function AdminDashboard() {
                       </div>
                     )}
                   </div>
-                  <Link to={`/admin/events/${event._id}`} className="no-underline shrink-0">
+                  <Link to={`/admin/events/${event._id}`} className="no-underline shrink-0 self-start">
                     <Button variant="outline" size="sm" className="gap-1.5 w-full sm:w-auto text-xs">
                       <Eye className="h-3.5 w-3.5" />
                       Manage

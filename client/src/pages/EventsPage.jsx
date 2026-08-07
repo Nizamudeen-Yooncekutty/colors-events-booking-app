@@ -186,7 +186,7 @@ export default function EventsPage() {
                         </span>
                         <span className="flex items-center gap-1.5">
                           <MapPin className="h-3 w-3 text-primary" />
-                          <span className="truncate max-w-[140px] sm:max-w-none">{event.venue}</span>
+                          <span className="truncate max-w-[140px] sm:max-w-none">{event.venue}{event.location ? `, ${event.location}` : ''}</span>
                         </span>
                         <span className="flex items-center gap-1.5">
                           <Users className="h-3 w-3 text-primary" />

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '@/lib/api';
 import { formatDate, isRegistrationOpen } from '@/lib/utils';
+import { getSlotColor } from '@/lib/slotColors';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -125,6 +126,7 @@ export default function EventDetailPage() {
               {[
                 { icon: CalendarDays, label: 'Event Date', value: formatDate(event.eventDate) },
                 { icon: MapPin, label: 'Venue', value: event.venue },
+                ...(event.location ? [{ icon: MapPin, label: 'Location', value: event.location }] : []),
                 { icon: Users, label: 'Registrations', value: `${event.bookingCount}${event.maxCapacity > 0 ? ` / ${event.maxCapacity}` : ''} registered` },
                 { icon: CalendarDays, label: 'Registration Window', value: `${formatDate(event.registrationStart)} – ${formatDate(event.registrationEnd)}` },
               ].map((item) => {
@@ -149,13 +151,17 @@ export default function EventDetailPage() {
                   Available Time Slots
                 </h3>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  {event.timeSlots.map((slot) => {
+                  {event.timeSlots.map((slot, index) => {
+                    const color = getSlotColor(index);
                     const booked = event.slotCounts?.[slot._id] || 0;
                     const slotFull = slot.maxCapacity > 0 && booked >= slot.maxCapacity;
                     return (
-                      <div key={slot._id} className={`rounded-lg border px-3 py-2 bg-white ${slotFull ? 'border-error/30 opacity-70' : ''}`}>
+                      <div key={slot._id} className={`rounded-lg border px-3 py-2 bg-white ${slotFull ? 'opacity-70' : ''}`} style={{ borderColor: color, borderWidth: '2px' }}>
                         <div className="flex items-center justify-between">
-                          <p className="text-xs font-medium text-foreground sm:text-sm">{slot.label}</p>
+                          <div className="flex items-center gap-1.5">
+                            <span className="inline-block h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                            <p className="text-xs font-medium text-foreground sm:text-sm">{slot.label}</p>
+                          </div>
                           {slotFull && <Badge variant="destructive" className="text-[9px]">Full</Badge>}
                         </div>
                         <p className="text-[10px] text-muted-foreground sm:text-xs">{slot.startTime} – {slot.endTime}</p>

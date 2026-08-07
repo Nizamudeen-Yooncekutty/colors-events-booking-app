@@ -21,7 +21,7 @@ const sendBookingConfirmation = async (employee, event, booking) => {
   try {
     const mail = getTransporter();
     await mail.sendMail({
-      from: `"UST PassMint" <${process.env.SMTP_USER}>`,
+      from: `"UST Qpass" <${process.env.SMTP_USER}>`,
       to: employee.email,
       subject: `Booking Confirmed: ${event.title}`,
       html: `
@@ -33,10 +33,11 @@ const sendBookingConfirmation = async (employee, event, booking) => {
             <p><strong>Event:</strong> ${event.title}</p>
             <p><strong>Date:</strong> ${new Date(event.eventDate).toLocaleDateString()}</p>
             <p><strong>Venue:</strong> ${event.venue}</p>
+            ${event.location ? `<p><strong>Location:</strong> ${event.location}</p>` : ''}
             <p><strong>Food Preference:</strong> ${booking.foodPreference}</p>
           </div>
           <p>Your digital QR pass is available in the app. Show it at the venue for entry.</p>
-          <p style="color: #6b7280; font-size: 12px;">This is an automated email from UST PassMint.</p>
+          <p style="color: #6b7280; font-size: 12px;">This is an automated email from UST Qpass.</p>
         </div>
       `,
     });

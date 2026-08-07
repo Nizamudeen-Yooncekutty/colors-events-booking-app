@@ -42,7 +42,14 @@ router.get('/dashboard', protect, adminOnly, async (req, res) => {
         event: event._id,
         status: 'checked_in',
       });
-      event.walkInCount = await WalkIn.countDocuments({ event: event._id });
+      const eventWalkIns = await WalkIn.aggregate([
+        { $match: { event: event._id } },
+        { $group: { _id: '$attendeeType', count: { $sum: 1 } } },
+      ]);
+      event.walkInCount = eventWalkIns.reduce((sum, w) => sum + w.count, 0);
+      event.walkInBreakdown = { guest: 0, staff: 0, housekeeping: 0, unregistered_employee: 0 };
+      eventWalkIns.forEach(w => { event.walkInBreakdown[w._id] = w.count; });
+      event.totalAttended = event.checkedInCount + event.walkInCount;
     }
 
     res.json({
@@ -233,11 +240,6 @@ router.get('/events/:eventId/report/download', protect, adminOnly, [
       .lean();
 
     const hasSlots = event.timeSlots?.length > 0;
-    const headers = [
-      'Type', 'Name', 'Employee ID', 'Email', 'Phone', 'Department',
-      ...(hasSlots ? ['Time Slot'] : []),
-      'Food Preference', 'Status', 'Checked In At', 'Notes',
-    ];
 
     const escapeCSV = (val) => {
       if (val == null) return '';
@@ -248,11 +250,46 @@ router.get('/events/:eventId/report/download', protect, adminOnly, [
       return str;
     };
 
+    // Summary section
+    const guestCount = walkIns.filter(w => w.attendeeType === 'guest').length;
+    const staffCount = walkIns.filter(w => w.attendeeType === 'staff').length;
+    const housekeepingCount = walkIns.filter(w => w.attendeeType === 'housekeeping').length;
+    const unregEmpCount = walkIns.filter(w => w.attendeeType === 'unregistered_employee').length;
+    const checkedInCount = bookings.filter(b => b.status === 'checked_in').length;
+    const totalAttended = checkedInCount + walkIns.length;
+
+    const summaryRows = [
+      ['EVENT REPORT SUMMARY'],
+      ['Event', event.title],
+      ['Date', new Date(event.eventDate).toLocaleDateString()],
+      ['Venue', event.venue],
+      ...(event.location ? [['Location', event.location]] : []),
+      [''],
+      ['ATTENDANCE'],
+      ['Total Registrations', bookings.length],
+      ['Employee Check-ins', checkedInCount],
+      ['Total Walk-ins', walkIns.length],
+      ['  - Guests', guestCount],
+      ['  - Staff', staffCount],
+      ['  - Housekeeping', housekeepingCount],
+      ['  - Unregistered Employees', unregEmpCount],
+      ['Total Attended', totalAttended],
+      [''],
+      ['DETAILED RECORDS'],
+    ];
+
+    const headers = [
+      'Type', 'Attendee Category', 'Name', 'Employee ID', 'Email', 'Phone', 'Department',
+      ...(hasSlots ? ['Time Slot'] : []),
+      'Food Preference', 'Status', 'Checked In At', 'Notes',
+    ];
+
     const rows = [];
 
     bookings.forEach(b => {
       rows.push([
         'Employee',
+        'Registered Employee',
         b.employee?.name || '',
         b.employee?.employeeId || '',
         b.employee?.email || '',
@@ -266,14 +303,15 @@ router.get('/events/:eventId/report/download', protect, adminOnly, [
       ].map(escapeCSV));
     });
 
+    const typeLabels = {
+      guest: 'Guest',
+      staff: 'Staff',
+      housekeeping: 'Housekeeping',
+      unregistered_employee: 'Unregistered Employee',
+    };
     walkIns.forEach(w => {
-      const typeLabels = {
-        guest: 'Guest',
-        staff: 'Staff',
-        housekeeping: 'Housekeeping',
-        unregistered_employee: 'Unregistered Employee',
-      };
       rows.push([
+        'Walk-in',
         typeLabels[w.attendeeType] || w.attendeeType,
         w.name || '',
         w.employeeId || '',
@@ -288,7 +326,9 @@ router.get('/events/:eventId/report/download', protect, adminOnly, [
       ].map(escapeCSV));
     });
 
-    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const summaryCSV = summaryRows.map(r => r.map(escapeCSV).join(',')).join('\n');
+    const dataCSV = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const csv = summaryCSV + '\n' + dataCSV;
 
     const filename = `${event.title.replace(/[^a-zA-Z0-9]/g, '_')}_report.csv`;
     res.setHeader('Content-Type', 'text/csv');

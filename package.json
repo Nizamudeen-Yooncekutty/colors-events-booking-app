@@ -1,7 +1,7 @@
 {
-  "name": "ust-passmint",
+  "name": "ust-qpass",
   "version": "1.0.0",
-  "description": "UST PassMint - Digital Event Token System",
+  "description": "UST Qpass - Digital Event Token System",
   "scripts": {
     "dev:server": "cd server && npm run dev",
     "dev:client": "cd client && npm run dev",

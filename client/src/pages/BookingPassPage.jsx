@@ -12,17 +12,16 @@ import {
   User, Hash, CheckCircle2, Building2, Clock,
 } from 'lucide-react';
 
-const SLOT_COLOR_MAP = {
-  '#6A1B9A': { bg: '#F3E5F5', border: '#CE93D8', gradient: 'from-[#6A1B9A] to-[#8E24AA]', label: 'text-purple-700', labelBg: 'bg-purple-50' },
-  '#1565C0': { bg: '#E3F2FD', border: '#90CAF9', gradient: 'from-[#1565C0] to-[#1E88E5]', label: 'text-blue-700', labelBg: 'bg-blue-50' },
-  '#2E7D32': { bg: '#E8F5E9', border: '#A5D6A7', gradient: 'from-[#2E7D32] to-[#43A047]', label: 'text-green-700', labelBg: 'bg-green-50' },
-  '#E65100': { bg: '#FFF3E0', border: '#FFCC80', gradient: 'from-[#E65100] to-[#F57C00]', label: 'text-orange-700', labelBg: 'bg-orange-50' },
-  '#C62828': { bg: '#FFEBEE', border: '#EF9A9A', gradient: 'from-[#C62828] to-[#E53935]', label: 'text-red-700', labelBg: 'bg-red-50' },
-};
+import { getSlotColor, getSlotColorLight } from '@/lib/slotColors';
 
-function getSlotTheme(slotColor) {
-  if (slotColor && SLOT_COLOR_MAP[slotColor]) return SLOT_COLOR_MAP[slotColor];
-  return { bg: '#F5F5F5', border: '#E0E0E0', gradient: 'from-primary to-primary-800', label: 'text-gray-700', labelBg: 'bg-gray-50' };
+function getSlotTheme(slotColor, booking) {
+  if (!slotColor) return { bg: '#F5F5F5', border: '#E0E0E0', color: null };
+  const slotIndex = booking?.event?.timeSlots?.findIndex(
+    s => s._id === booking.timeSlot?.toString() || s._id?.toString() === booking.timeSlot?.toString()
+  ) ?? -1;
+  const color = slotIndex >= 0 ? getSlotColor(slotIndex) : slotColor;
+  const light = slotIndex >= 0 ? getSlotColorLight(slotIndex) : slotColor + '20';
+  return { bg: light, border: color, color };
 }
 
 export default function BookingPassPage() {
@@ -62,7 +61,7 @@ export default function BookingPassPage() {
 
   if (!booking) return null;
 
-  const theme = getSlotTheme(booking.slotColor);
+  const theme = getSlotTheme(booking.slotColor, booking);
 
   const passDetails = [
     { icon: User, label: 'Name', value: booking.employee?.name },
@@ -70,6 +69,7 @@ export default function BookingPassPage() {
     { icon: Building2, label: 'Department', value: booking.employee?.department || '—' },
     { icon: CalendarDays, label: 'Event Date', value: formatDate(booking.event?.eventDate) },
     { icon: MapPin, label: 'Venue', value: booking.event?.venue },
+    ...(booking.event?.location ? [{ icon: MapPin, label: 'Location', value: booking.event.location }] : []),
     ...(booking.timeSlotLabel ? [{
       icon: Clock,
       label: 'Time Slot',
@@ -95,7 +95,7 @@ export default function BookingPassPage() {
       >
         <Card className="overflow-hidden">
           {/* Header - colored by slot */}
-          <div className={`bg-gradient-to-r ${theme.gradient} px-4 py-4 text-center text-white sm:px-6 sm:py-5`}>
+          <div className="px-4 py-4 text-center text-white sm:px-6 sm:py-5" style={{ backgroundColor: theme.color || '#0d6e74' }}>
             <h2 className="text-base font-bold sm:text-lg">{booking.event?.title}</h2>
             <p className="mt-0.5 text-[10px] text-white/80 sm:text-xs">Digital Event Token</p>
             {booking.timeSlotLabel && (() => {

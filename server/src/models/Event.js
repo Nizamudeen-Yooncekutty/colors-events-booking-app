@@ -32,6 +32,11 @@ const eventSchema = new mongoose.Schema({
     required: true,
     trim: true,
   },
+  location: {
+    type: String,
+    default: '',
+    trim: true,
+  },
   registrationStart: {
     type: Date,
     required: true,

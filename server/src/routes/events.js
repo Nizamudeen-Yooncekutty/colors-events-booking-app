@@ -11,6 +11,7 @@ const eventValidationRules = [
   body('title').isString().trim().isLength({ min: 2, max: 200 }).withMessage('Title must be 2-200 characters'),
   body('eventDate').isISO8601().withMessage('Event date must be a valid ISO 8601 date'),
   body('venue').isString().trim().isLength({ min: 2, max: 200 }).withMessage('Venue must be 2-200 characters'),
+  body('location').optional().isString().trim().isLength({ max: 300 }).withMessage('Location must be under 300 characters'),
   body('registrationStart').isISO8601().withMessage('Registration start must be a valid ISO 8601 date'),
   body('registrationEnd').isISO8601().withMessage('Registration end must be a valid ISO 8601 date'),
   body('maxCapacity').optional().isInt({ min: 0 }).withMessage('Max capacity must be a non-negative integer'),
@@ -116,12 +117,13 @@ router.get('/:id', protect, [
 // POST /api/events - create event (admin only)
 router.post('/', protect, adminOnly, eventValidationRules, handleValidationErrors, async (req, res) => {
   try {
-    const { title, description, eventDate, venue, registrationStart, registrationEnd, maxCapacity, status, timeSlots, foodOptions } = req.body;
+    const { title, description, eventDate, venue, location, registrationStart, registrationEnd, maxCapacity, status, timeSlots, foodOptions } = req.body;
     const event = await Event.create({
       title,
       description,
       eventDate,
       venue,
+      location,
       registrationStart,
       registrationEnd,
       maxCapacity,
@@ -143,7 +145,7 @@ router.put('/:id', protect, adminOnly, [
 ], handleValidationErrors, async (req, res) => {
   try {
     const allowed = {};
-    const fields = ['title', 'description', 'eventDate', 'venue', 'registrationStart', 'registrationEnd', 'maxCapacity', 'status', 'timeSlots', 'foodOptions'];
+    const fields = ['title', 'description', 'eventDate', 'venue', 'location', 'registrationStart', 'registrationEnd', 'maxCapacity', 'status', 'timeSlots', 'foodOptions'];
     fields.forEach(f => { if (req.body[f] !== undefined) allowed[f] = req.body[f]; });
     const event = await Event.findByIdAndUpdate(
       req.params.id,
