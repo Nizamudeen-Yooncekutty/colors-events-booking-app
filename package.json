@@ -1,7 +1,7 @@
 {
   "name": "ust-qpass",
   "version": "1.0.0",
-  "description": "UST Qpass - Digital Event Token System",
+  "description": "UST QPass - Digital Event Token System",
   "scripts": {
     "dev:server": "cd server && npm run dev",
     "dev:client": "cd client && npm run dev",
@@ -13,6 +13,20 @@
     "test": "cd server && npm test && cd ../client && npm test",
     "test:server": "cd server && npm test",
     "test:client": "cd client && npm test",
+    "test:e2e": "npx playwright test",
+    "test:e2e:headed": "npx playwright test --headed",
+    "test:e2e:report": "npx playwright show-report e2e/reports/html",
+    "test:e2e:excel": "node e2e/generate-report.js",
+    "test:e2e:full": "npx playwright test && node e2e/generate-report.js",
+    "test:e2e:auth": "npx playwright test 01-auth",
+    "test:e2e:events": "npx playwright test 02-events",
+    "test:e2e:booking": "npx playwright test 03-booking",
+    "test:e2e:scanning": "npx playwright test 04-scanning",
+    "test:e2e:walkin": "npx playwright test 05-walkin",
+    "test:e2e:admin": "npx playwright test 06-admin",
+    "test:e2e:roles": "npx playwright test 07-role",
+    "test:e2e:security": "npx playwright test 08-security",
+    "test:e2e:journeys": "npx playwright test 09-e2e",
     "loadtest": "node loadtest/load-test.js",
     "loadtest:register": "node loadtest/load-test.js register 100 1000",
     "loadtest:scan": "node loadtest/load-test.js scan 100 1000",
@@ -30,7 +44,8 @@
   },
   "devDependencies": {
     "artillery": "^2.0.33",
-    "concurrently": "^9.0.1"
+    "concurrently": "^9.0.1",
+    "xlsx": "^0.18.5"
   },
   "dependencies": {
     "pm2": "^7.0.3"

@@ -110,7 +110,7 @@ export default function RegisterPage() {
               </svg>
             </motion.div>
             <h1 className="text-base font-semibold text-foreground sm:text-lg">Create Account</h1>
-            <p className="mt-0.5 text-[11px] text-ust-gray-600 sm:text-xs">UST Qpass &middot; Register with your employee details</p>
+            <p className="mt-0.5 text-[11px] text-ust-gray-600 sm:text-xs">UST QPass &middot; Register with your employee details</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-3.5">

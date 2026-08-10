@@ -91,7 +91,7 @@ export default function LoginPage() {
               </svg>
             </motion.div>
             <h1 className="text-base font-semibold text-foreground sm:text-lg">
-              <span className="font-bold">UST</span> Qpass
+              <span className="font-bold">UST</span> QPass
             </h1>
             <p className="mt-0.5 text-[11px] text-ust-gray-600 sm:text-xs">Digital Event Token System</p>
           </div>
