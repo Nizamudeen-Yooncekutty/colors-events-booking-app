@@ -9,7 +9,7 @@ const api = axios.create({
 let isHandlingSessionExpiry = false;
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
+  const token = sessionStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -41,8 +41,8 @@ api.interceptors.response.use(
 
     if (error.response.status === 401 && !isHandlingSessionExpiry) {
       isHandlingSessionExpiry = true;
-      localStorage.removeItem('token');
-      localStorage.removeItem('employee');
+      sessionStorage.removeItem('token');
+      sessionStorage.removeItem('employee');
       setTimeout(() => {
         isHandlingSessionExpiry = false;
         window.location.href = '/login';

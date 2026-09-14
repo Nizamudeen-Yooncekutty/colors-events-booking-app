@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const { body, param, query } = require('express-validator');
 const Employee = require('../models/Employee');
 const Event = require('../models/Event');
@@ -7,6 +8,7 @@ const WalkIn = require('../models/WalkIn');
 const RoleUser = require('../models/RoleUser');
 const { protect, adminOnly } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validate');
+const { parsePagination, paginationMeta } = require('../utils/paginate');
 
 const router = express.Router();
 
@@ -27,13 +29,27 @@ router.get('/dashboard', protect, adminOnly, async (req, res) => {
     const walkInStats = { guest: 0, staff: 0, housekeeping: 0, unregistered_employee: 0 };
     walkInByType.forEach(w => { walkInStats[w._id] = w.count; });
 
-    // Recent events with stats
-    const recentEvents = await Event.find()
+    const { page, limit, skip } = parsePagination(req.query);
+
+    const eventFilter = {};
+    if (req.query.search) {
+      const searchRegex = new RegExp(req.query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      eventFilter.$or = [
+        { title: searchRegex },
+        { venue: searchRegex },
+        { location: searchRegex },
+      ];
+    }
+
+    const eventsTotal = await Event.countDocuments(eventFilter);
+
+    const events = await Event.find(eventFilter)
       .sort({ createdAt: -1 })
-      .limit(5)
+      .skip(skip)
+      .limit(limit)
       .lean();
 
-    for (const event of recentEvents) {
+    for (const event of events) {
       event.bookingCount = await Booking.countDocuments({
         event: event._id,
         status: { $ne: 'cancelled' },
@@ -62,7 +78,8 @@ router.get('/dashboard', protect, adminOnly, async (req, res) => {
         totalWalkIns,
         walkInStats,
       },
-      recentEvents,
+      events,
+      pagination: paginationMeta(eventsTotal, page, limit),
     });
   } catch (error) {
     res.status(500).json({ message: 'An error occurred. Please try again.' });
@@ -74,38 +91,58 @@ router.get('/events/:eventId/bookings', protect, adminOnly, [
   param('eventId').isMongoId().withMessage('Invalid event ID'),
   query('status').optional({ values: 'falsy' }).isIn(['confirmed', 'checked_in', 'cancelled']).withMessage('Invalid status filter'),
   query('role').optional({ values: 'falsy' }).isIn(['employee', 'admin', 'volunteer']).withMessage('Invalid role filter'),
+  query('food').optional({ values: 'falsy' }).isString().trim().isLength({ max: 100 }).withMessage('Invalid food filter'),
+  query('slot').optional({ values: 'falsy' }).isMongoId().withMessage('Invalid slot filter'),
+  query('search').optional({ values: 'falsy' }).isString().trim().isLength({ max: 100 }).withMessage('Search must be under 100 characters'),
 ], handleValidationErrors, async (req, res) => {
   try {
     const { status, food, search, slot } = req.query;
-    const filter = { event: req.params.eventId };
+    const eventObjectId = new mongoose.Types.ObjectId(req.params.eventId);
+    const filter = { event: eventObjectId };
 
     if (status) filter.status = status;
     if (food) filter.foodPreference = food;
-    if (slot) filter.timeSlot = slot;
+    if (slot) filter.timeSlot = new mongoose.Types.ObjectId(slot);
 
-    let bookings = await Booking.find(filter)
-      .populate('employee', 'name employeeId email department phone')
-      .populate('event', 'title eventDate')
-      .sort({ createdAt: -1 });
-
+    // Search by employee fields using a lookup pipeline
+    let employeeIds = null;
     if (search) {
-      const s = search.toLowerCase();
-      bookings = bookings.filter(b =>
-        b.employee.name.toLowerCase().includes(s) ||
-        b.employee.employeeId.toLowerCase().includes(s) ||
-        b.employee.email.toLowerCase().includes(s)
-      );
+      const searchRegex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      const matchedEmployees = await Employee.find({
+        $or: [
+          { name: searchRegex },
+          { employeeId: searchRegex },
+          { email: searchRegex },
+        ],
+      }).select('_id');
+      employeeIds = matchedEmployees.map(e => e._id);
+      filter.employee = { $in: employeeIds };
     }
 
-    // Stats
-    const stats = {
-      total: bookings.length,
-      confirmed: bookings.filter(b => b.status === 'confirmed').length,
-      checkedIn: bookings.filter(b => b.status === 'checked_in').length,
-      cancelled: bookings.filter(b => b.status === 'cancelled').length,
-    };
+    // Stats from full filtered set (before pagination)
+    const statsPipeline = [
+      { $match: filter },
+      { $group: { _id: '$status', count: { $sum: 1 } } },
+    ];
+    const statsAgg = await Booking.aggregate(statsPipeline);
+    const stats = { total: 0, confirmed: 0, checkedIn: 0, cancelled: 0 };
+    statsAgg.forEach(s => {
+      stats.total += s.count;
+      if (s._id === 'confirmed') stats.confirmed = s.count;
+      else if (s._id === 'checked_in') stats.checkedIn = s.count;
+      else if (s._id === 'cancelled') stats.cancelled = s.count;
+    });
 
-    res.json({ bookings, stats });
+    const { page, limit, skip } = parsePagination(req.query);
+
+    const bookings = await Booking.find(filter)
+      .populate('employee', 'name employeeId email department phone')
+      .populate('event', 'title eventDate')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    res.json({ bookings, stats, pagination: paginationMeta(stats.total, page, limit) });
   } catch (error) {
     res.status(500).json({ message: 'An error occurred. Please try again.' });
   }
@@ -348,21 +385,25 @@ router.get('/employees', protect, adminOnly, [
     const filter = {};
 
     if (role) filter.role = role;
-
-    let employees = await Employee.find(filter)
-      .select('-password')
-      .sort({ name: 1 });
-
     if (search) {
-      const s = search.toLowerCase();
-      employees = employees.filter(e =>
-        e.name.toLowerCase().includes(s) ||
-        e.employeeId.toLowerCase().includes(s) ||
-        e.email.toLowerCase().includes(s)
-      );
+      const searchRegex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      filter.$or = [
+        { name: searchRegex },
+        { employeeId: searchRegex },
+        { email: searchRegex },
+      ];
     }
 
-    res.json({ employees, total: employees.length });
+    const { page, limit, skip } = parsePagination(req.query);
+    const total = await Employee.countDocuments(filter);
+
+    const employees = await Employee.find(filter)
+      .select('-password')
+      .sort({ name: 1 })
+      .skip(skip)
+      .limit(limit);
+
+    res.json({ employees, total, pagination: paginationMeta(total, page, limit) });
   } catch (error) {
     res.status(500).json({ message: 'An error occurred. Please try again.' });
   }

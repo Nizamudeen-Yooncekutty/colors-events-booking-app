@@ -15,7 +15,7 @@ async function bootstrap() {
     msalInstance = new PublicClientApplication(msalConfig);
     await msalInstance.initialize();
 
-    // Handle the redirect response from Azure AD
+    // Handle the redirect response from Azure AD (only runs after Azure redirects back)
     try {
       const response = await msalInstance.handleRedirectPromise();
       if (response?.account && response?.idToken) {
@@ -24,12 +24,13 @@ async function bootstrap() {
         // Complete SSO: send idToken to backend, get app JWT
         try {
           const data = await authenticateWithSSO(response.idToken);
-          localStorage.setItem('token', data.token);
-          localStorage.setItem('employee', JSON.stringify(data.employee));
+          sessionStorage.setItem('token', data.token);
+          sessionStorage.setItem('employee', JSON.stringify(data.employee));
 
-          // Redirect to appropriate page
+          // Full page redirect so AuthContext picks up the token
           const dest = data.employee.role === 'admin' ? '/admin' : '/events';
-          window.history.replaceState({}, '', dest);
+          window.location.replace(dest);
+          return;
         } catch (err) {
           console.error('SSO backend auth failed:', err);
         }

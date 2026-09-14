@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import api from '@/lib/api';
@@ -8,11 +8,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Separator } from '@/components/ui/separator';
+import LoadingMore from '@/components/LoadingMore';
+import useInfiniteScroll from '@/hooks/useInfiniteScroll';
 import {
   ArrowLeft, Users, ScanLine, Ticket, Search,
   UtensilsCrossed, Download, Pencil, Trash2, Clock,
-  UserPlus, UsersRound, Building2, BarChart3, FileText, QrCode,
+  UserPlus, UsersRound, Building2, BarChart3, QrCode,
 } from 'lucide-react';
 import { getSlotColor } from '@/lib/slotColors';
 
@@ -27,52 +28,57 @@ export default function AdminEventPage() {
   const { eventId } = useParams();
   const navigate = useNavigate();
   const [event, setEvent] = useState(null);
-  const [bookings, setBookings] = useState([]);
-  const [stats, setStats] = useState({});
-  const [walkIns, setWalkIns] = useState([]);
+  const [bookingStats, setBookingStats] = useState({});
   const [walkInStats, setWalkInStats] = useState({});
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterSlot, setFilterSlot] = useState('');
   const [activeView, setActiveView] = useState('employees');
   const [loading, setLoading] = useState(true);
 
-  const fetchData = async () => {
-    try {
-      const [eventRes, bookingsRes, walkInRes] = await Promise.allSettled([
-        api.get(`/events/${eventId}`),
-        api.get(`/admin/events/${eventId}/bookings`, {
-          params: { search: search || undefined, status: filterStatus || undefined, slot: filterSlot || undefined },
-        }),
-        api.get(`/walkins/event/${eventId}`, {
-          params: { search: search || undefined },
-        }),
-      ]);
-
-      if (eventRes.status === 'fulfilled') {
-        setEvent(eventRes.value.data.event);
-      }
-      if (bookingsRes.status === 'fulfilled') {
-        setBookings(bookingsRes.value.data.bookings);
-        setStats(bookingsRes.value.data.stats);
-      }
-      if (walkInRes.status === 'fulfilled') {
-        setWalkIns(walkInRes.value.data.walkIns);
-        setWalkInStats(walkInRes.value.data.stats);
-      }
-    } catch {
-      console.error('Failed to fetch data');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { fetchData(); }, [eventId]);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   useEffect(() => {
-    const timer = setTimeout(fetchData, 300);
-    return () => clearTimeout(timer);
-  }, [search, filterStatus, filterSlot]);
+    api.get(`/events/${eventId}`)
+      .then(res => setEvent(res.data.event))
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [eventId]);
+
+  const fetchBookings = useCallback(async (page) => {
+    const res = await api.get(`/admin/events/${eventId}/bookings`, {
+      params: {
+        page, limit: 20,
+        search: debouncedSearch || undefined,
+        status: filterStatus || undefined,
+        slot: filterSlot || undefined,
+      },
+    });
+    setBookingStats(res.data.stats);
+    return { items: res.data.bookings, pagination: res.data.pagination };
+  }, [eventId, debouncedSearch, filterStatus, filterSlot]);
+
+  const fetchWalkIns = useCallback(async (page) => {
+    const res = await api.get(`/walkins/event/${eventId}`, {
+      params: { page, limit: 20, search: debouncedSearch || undefined },
+    });
+    setWalkInStats(res.data.stats);
+    return { items: res.data.walkIns, pagination: res.data.pagination };
+  }, [eventId, debouncedSearch]);
+
+  const {
+    items: bookings, loading: bookingsLoading, loadingMore: bookingsLoadingMore,
+    sentinelRef: bookingsSentinelRef,
+  } = useInfiniteScroll(fetchBookings, { deps: [debouncedSearch, filterStatus, filterSlot] });
+
+  const {
+    items: walkIns, loading: walkInsLoading, loadingMore: walkInsLoadingMore,
+    sentinelRef: walkInsSentinelRef,
+  } = useInfiniteScroll(fetchWalkIns, { deps: [debouncedSearch] });
 
   const downloadReport = async () => {
     try {
@@ -106,7 +112,7 @@ export default function AdminEventPage() {
 
   const handleDelete = async () => {
     const confirmed = window.confirm(
-      `Are you sure you want to delete "${event?.title}"?\n\nThis will cancel all ${stats.total || 0} bookings for this event. This action cannot be undone.`
+      `Are you sure you want to delete "${event?.title}"?\n\nThis will cancel all ${bookingStats.total || 0} bookings for this event. This action cannot be undone.`
     );
     if (!confirmed) return;
     try {
@@ -126,7 +132,7 @@ export default function AdminEventPage() {
     }
   };
 
-  const totalAttendees = (stats.checkedIn || 0) + (walkInStats.total || 0);
+  const totalAttendees = (bookingStats.checkedIn || 0) + (walkInStats.total || 0);
 
   return (
     <div>
@@ -167,11 +173,11 @@ export default function AdminEventPage() {
       {/* Overall stats */}
       <div className="mb-4 grid gap-3 grid-cols-2 sm:grid-cols-5">
         {[
-          { label: 'Bookings', value: stats.total, icon: Ticket, color: 'text-primary bg-primary-100' },
-          { label: 'Checked In', value: stats.checkedIn, icon: ScanLine, color: 'text-green-700 bg-success-light' },
+          { label: 'Bookings', value: bookingStats.total, icon: Ticket, color: 'text-primary bg-primary-100' },
+          { label: 'Checked In', value: bookingStats.checkedIn, icon: ScanLine, color: 'text-green-700 bg-success-light' },
           { label: 'Walk-ins', value: walkInStats.total, icon: UserPlus, color: 'text-amber-700 bg-amber-50' },
           { label: 'Total Attended', value: totalAttendees, icon: Users, color: 'text-primary-700 bg-primary-50' },
-          { label: 'Cancelled', value: stats.cancelled, icon: Users, color: 'text-error bg-error-light' },
+          { label: 'Cancelled', value: bookingStats.cancelled, icon: Users, color: 'text-error bg-error-light' },
         ].map((s, i) => {
           const Icon = s.icon;
           return (
@@ -218,8 +224,7 @@ export default function AdminEventPage() {
       )}
 
       {/* Slot breakdown */}
-      {event?.timeSlots?.length > 0 && (() => {
-        return (
+      {event?.timeSlots?.length > 0 && (
         <Card className="mb-4">
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-xs sm:text-sm">
@@ -234,7 +239,7 @@ export default function AdminEventPage() {
                 const isFull = slot.maxCapacity > 0 && booked >= slot.maxCapacity;
                 const color = getSlotColor(index);
                 return (
-                  <div key={slot._id} className={`rounded-md border px-3 py-1.5 text-center bg-white sm:px-4 sm:py-2`} style={{ borderColor: color, borderWidth: '2px' }}>
+                  <div key={slot._id} className="rounded-md border px-3 py-1.5 text-center bg-white sm:px-4 sm:py-2" style={{ borderColor: color, borderWidth: '2px' }}>
                     <div className="flex items-center justify-center gap-1.5 mb-1">
                       <span className="inline-block h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: color }} />
                       <span className="text-[10px] font-semibold sm:text-xs" style={{ color }}>{slot.label}</span>
@@ -249,8 +254,7 @@ export default function AdminEventPage() {
             </div>
           </CardContent>
         </Card>
-        );
-      })()}
+      )}
 
       {/* Food breakdown */}
       {event?.foodBreakdown?.length > 0 && (
@@ -278,7 +282,6 @@ export default function AdminEventPage() {
       <Card>
         <CardHeader className="p-3 sm:p-5">
           <div className="flex flex-col gap-2.5">
-            {/* Tab buttons */}
             <div className="flex items-center gap-2 flex-wrap">
               <div className="flex rounded-lg border bg-ust-gray-200 p-0.5">
                 <button
@@ -287,7 +290,7 @@ export default function AdminEventPage() {
                     activeView === 'employees' ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground'
                   }`}
                 >
-                  Employees ({stats.total || 0})
+                  Employees ({bookingStats.total || 0})
                 </button>
                 <button
                   onClick={() => setActiveView('walkins')}
@@ -305,7 +308,6 @@ export default function AdminEventPage() {
               </Button>
             </div>
 
-            {/* Filters */}
             <div className="flex flex-col gap-2 sm:flex-row">
               <div className="relative flex-1">
                 <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -388,7 +390,7 @@ export default function AdminEventPage() {
                         <td className="py-2 px-3 text-xs text-muted-foreground whitespace-nowrap">{formatDateTime(b.createdAt)}</td>
                       </motion.tr>
                     ))}
-                    {bookings.length === 0 && (
+                    {bookings.length === 0 && !bookingsLoading && (
                       <tr><td colSpan={event?.timeSlots?.length > 0 ? 6 : 5} className="py-8 text-center text-sm text-muted-foreground">No bookings found</td></tr>
                     )}
                   </tbody>
@@ -414,10 +416,11 @@ export default function AdminEventPage() {
                     </div>
                   </div>
                 ))}
-                {bookings.length === 0 && (
+                {bookings.length === 0 && !bookingsLoading && (
                   <p className="py-8 text-center text-xs text-muted-foreground">No bookings found</p>
                 )}
               </div>
+              <LoadingMore ref={bookingsSentinelRef} loading={bookingsLoadingMore} />
             </>
           )}
 
@@ -468,7 +471,7 @@ export default function AdminEventPage() {
                         </motion.tr>
                       );
                     })}
-                    {walkIns.length === 0 && (
+                    {walkIns.length === 0 && !walkInsLoading && (
                       <tr><td colSpan={event?.timeSlots?.length > 0 ? 7 : 6} className="py-8 text-center text-sm text-muted-foreground">No walk-ins recorded</td></tr>
                     )}
                   </tbody>
@@ -498,10 +501,11 @@ export default function AdminEventPage() {
                     </div>
                   );
                 })}
-                {walkIns.length === 0 && (
+                {walkIns.length === 0 && !walkInsLoading && (
                   <p className="py-8 text-center text-xs text-muted-foreground">No walk-ins recorded</p>
                 )}
               </div>
+              <LoadingMore ref={walkInsSentinelRef} loading={walkInsLoadingMore} />
             </>
           )}
         </CardContent>

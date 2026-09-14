@@ -19,7 +19,18 @@ function getSigningKey(header, callback) {
 
 function verifyAzureToken(token) {
   return new Promise((resolve, reject) => {
-    jwt.verify(token, getSigningKey, { algorithms: ['RS256'] }, (err, decoded) => {
+    const options = {
+      algorithms: ['RS256'],
+    };
+
+    if (process.env.AZURE_CLIENT_ID) {
+      options.audience = process.env.AZURE_CLIENT_ID;
+    }
+    if (process.env.AZURE_TENANT_ID) {
+      options.issuer = `https://login.microsoftonline.com/${process.env.AZURE_TENANT_ID}/v2.0`;
+    }
+
+    jwt.verify(token, getSigningKey, options, (err, decoded) => {
       if (err) return reject(err);
       resolve(decoded);
     });

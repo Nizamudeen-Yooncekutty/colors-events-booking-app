@@ -8,6 +8,12 @@ const { verifyAzureToken } = require('../utils/azureAuth');
 
 const router = express.Router();
 
+const isTransientDbError = error => (
+  error?.name === 'MongoServerSelectionError'
+  || error?.name === 'MongooseServerSelectionError'
+  || /ECONNREFUSED|ETIMEDOUT|ENOTFOUND|connection timed out/i.test(error?.message || '')
+);
+
 const registerValidation = [
   body('employeeId')
     .trim()
@@ -26,9 +32,11 @@ const registerValidation = [
     .normalizeEmail(),
   body('password')
     .notEmpty().withMessage('Password is required')
-    .isLength({ min: 6, max: 128 }).withMessage('Password must be 6-128 characters')
-    .matches(/[a-zA-Z]/).withMessage('Password must contain at least one letter')
-    .matches(/\d/).withMessage('Password must contain at least one number'),
+    .isLength({ min: 8, max: 128 }).withMessage('Password must be 8-128 characters')
+    .matches(/[a-z]/).withMessage('Password must contain at least one lowercase letter')
+    .matches(/[A-Z]/).withMessage('Password must contain at least one uppercase letter')
+    .matches(/\d/).withMessage('Password must contain at least one number')
+    .matches(/[!@#$%^&*(),.?":{}|<>]/).withMessage('Password must contain at least one special character'),
   body('department')
     .optional()
     .trim()
@@ -132,6 +140,16 @@ router.post('/sso', async (req, res) => {
     }
 
     const email = (decoded.preferred_username || decoded.email).toLowerCase();
+
+    const allowedDomains = process.env.ALLOWED_EMAIL_DOMAIN;
+    if (allowedDomains) {
+      const emailDomain = email.split('@')[1];
+      const domains = allowedDomains.split(',').map(d => d.trim().toLowerCase());
+      if (!domains.includes(emailDomain)) {
+        return res.status(403).json({ message: 'Email domain not authorized for this application' });
+      }
+    }
+
     const name = decoded.name || email.split('@')[0];
     const employeeId = email.split('@')[0].toUpperCase();
 
@@ -177,9 +195,12 @@ router.post('/sso', async (req, res) => {
       token: generateToken(employee._id),
     });
   } catch (error) {
-    console.error('SSO auth error:', error.name, error.message, error.code);
+    console.error('SSO auth error:', error.name, error.message);
     if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
       return res.status(401).json({ message: 'Invalid or expired SSO token' });
+    }
+    if (isTransientDbError(error)) {
+      return res.status(503).json({ message: 'Authentication service is temporarily unavailable. Please try again.' });
     }
     res.status(500).json({ message: 'SSO authentication failed. Please try again.' });
   }

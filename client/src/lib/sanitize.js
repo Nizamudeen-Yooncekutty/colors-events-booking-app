@@ -1,14 +1,7 @@
-const SQL_PATTERN =
-  /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|EXECUTE|UNION|TRUNCATE|GRANT|REVOKE)\b)|--|\/\*|\*\/|xp_|sp_/i;
-
 const XSS_PATTERN = /<\s*\/?script/i;
 const XSS_EVENT_PATTERN = /\bon\w+\s*=/i;
 const XSS_URI_PATTERN = /javascript\s*:/i;
 const XSS_ELEMENT_PATTERN = /<\s*\/?\s*(iframe|object|embed|link|img|svg|math)\b[^>]*>/i;
-
-export function hasSQLInjection(value) {
-  return typeof value === 'string' && SQL_PATTERN.test(value);
-}
 
 export function hasXSS(value) {
   if (typeof value !== 'string') return false;
@@ -29,7 +22,7 @@ export function sanitizeInput(value) {
 }
 
 export function isUnsafeInput(value) {
-  return hasSQLInjection(value) || hasXSS(value);
+  return hasXSS(value);
 }
 
 export function sanitizeEmployeeId(value) {

@@ -7,7 +7,6 @@ const {
   generateWalkInQRData,
   isWalkInQR,
   parseWalkInQR,
-  SLOT_COLORS,
   WALKIN_TYPE_COLORS,
 } = require('../utils/qrcode');
 
@@ -38,16 +37,17 @@ describe('generateQRImage', () => {
 
 describe('getSlotColor', () => {
   test('returns default color for null index', () => {
-    expect(getSlotColor(null)).toBe(SLOT_COLORS[0]);
+    const color = getSlotColor(null);
+    expect(color.dark).toBe('#1a1a2e');
   });
 
   test('returns default color for negative index', () => {
-    expect(getSlotColor(-1)).toBe(SLOT_COLORS[0]);
+    const color = getSlotColor(-1);
+    expect(color.dark).toBe('#1a1a2e');
   });
 
-  test('returns non-default color for valid index', () => {
+  test('returns color with dark and light for valid index', () => {
     const color = getSlotColor(0);
-    expect(color).not.toBe(SLOT_COLORS[0]);
     expect(color.dark).toBeDefined();
     expect(color.light).toBeDefined();
   });
@@ -59,14 +59,20 @@ describe('getSlotColor', () => {
 });
 
 describe('generateWalkInQRData', () => {
-  test('returns WALKIN: format', () => {
+  test('returns WALKIN: format with HMAC signature', () => {
     const data = generateWalkInQRData('event123', 'guest');
-    expect(data).toBe('WALKIN:guest:event123');
+    expect(data).toMatch(/^WALKIN:guest:event123:[a-f0-9]{16}$/);
   });
 
   test('includes attendee type', () => {
     expect(generateWalkInQRData('e1', 'staff')).toContain('staff');
     expect(generateWalkInQRData('e1', 'housekeeping')).toContain('housekeeping');
+  });
+
+  test('generates consistent signature for same inputs', () => {
+    const data1 = generateWalkInQRData('event1', 'guest');
+    const data2 = generateWalkInQRData('event1', 'guest');
+    expect(data1).toBe(data2);
   });
 });
 
@@ -86,9 +92,18 @@ describe('isWalkInQR', () => {
 });
 
 describe('parseWalkInQR', () => {
-  test('parses valid walk-in QR', () => {
-    const result = parseWalkInQR('WALKIN:guest:event123');
+  test('parses valid signed walk-in QR', () => {
+    const qrData = generateWalkInQRData('event123', 'guest');
+    const result = parseWalkInQR(qrData);
     expect(result).toEqual({ attendeeType: 'guest', eventId: 'event123' });
+  });
+
+  test('returns null for unsigned QR (forged)', () => {
+    expect(parseWalkInQR('WALKIN:guest:event123')).toBeNull();
+  });
+
+  test('returns null for invalid signature', () => {
+    expect(parseWalkInQR('WALKIN:guest:event123:invalidsig00000')).toBeNull();
   });
 
   test('returns null for invalid format', () => {
@@ -97,7 +112,7 @@ describe('parseWalkInQR', () => {
   });
 
   test('returns null for non-WALKIN prefix', () => {
-    expect(parseWalkInQR('COLORS:guest:event1')).toBeNull();
+    expect(parseWalkInQR('COLORS:guest:event1:abcd1234abcd1234')).toBeNull();
   });
 });
 

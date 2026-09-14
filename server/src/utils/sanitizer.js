@@ -1,8 +1,5 @@
 const xss = require('xss');
 
-const SQL_PATTERN =
-  /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|EXECUTE|UNION|TRUNCATE|GRANT|REVOKE)\b)|--|\/\*|\*\/|xp_|sp_/i;
-
 const NOSQL_OPERATORS = [
   '$where', '$ne', '$gt', '$lt', '$gte', '$lte', '$regex',
   '$or', '$and', '$not', '$nor', '$in', '$nin', '$exists',
@@ -12,10 +9,6 @@ const NOSQL_OPERATORS = [
 const COMMAND_INJECTION_PATTERN = /&&|\|\||\$\(|`/;
 const PATH_TRAVERSAL_PATTERN = /\.\.\//;
 const NULL_BYTE_PATTERN = /\x00/;
-
-function hasSQLInjection(value) {
-  return typeof value === 'string' && SQL_PATTERN.test(value);
-}
 
 function hasNoSQLInjection(obj) {
   if (typeof obj !== 'object' || obj === null) return false;
@@ -57,7 +50,6 @@ function sanitizeObject(obj) {
 
 function runSecurityChecks(data) {
   if (typeof data === 'string') {
-    if (hasSQLInjection(data)) return 'Potentially unsafe input detected';
     if (hasCommandInjection(data)) return 'Potentially unsafe input detected';
     if (hasPathTraversal(data)) return 'Potentially unsafe input detected';
     if (hasNullByte(data)) return 'Potentially unsafe input detected';
@@ -78,6 +70,5 @@ module.exports = {
   sanitizeString,
   sanitizeObject,
   runSecurityChecks,
-  hasSQLInjection,
   hasNoSQLInjection,
 };

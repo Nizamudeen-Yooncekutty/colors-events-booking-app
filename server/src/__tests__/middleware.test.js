@@ -18,14 +18,13 @@ describe('sanitizeInputs middleware', () => {
     expect(next).toHaveBeenCalled();
   });
 
-  test('rejects SQL injection in body', () => {
-    const req = { body: { name: "'; DROP TABLE users" }, query: {} };
+  test('allows SQL-like words (MongoDB app, not vulnerable to SQL injection)', () => {
+    const req = { body: { name: "Please select your food preference" }, query: {} };
     const res = mockRes();
     const next = jest.fn();
 
     sanitizeInputs(req, res, next);
-    expect(res.status).toHaveBeenCalledWith(400);
-    expect(next).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalled();
   });
 
   test('rejects NoSQL injection in body', () => {

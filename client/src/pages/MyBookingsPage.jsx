@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import api from '@/lib/api';
@@ -7,18 +7,17 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import LoadingMore from '@/components/LoadingMore';
+import useInfiniteScroll from '@/hooks/useInfiniteScroll';
 import { CalendarDays, MapPin, Ticket, UtensilsCrossed, QrCode } from 'lucide-react';
 
 export default function MyBookingsPage() {
-  const [bookings, setBookings] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    api.get('/bookings/my')
-      .then(res => setBookings(res.data.bookings))
-      .catch(console.error)
-      .finally(() => setLoading(false));
+  const fetchBookings = useCallback(async (page) => {
+    const res = await api.get('/bookings/my', { params: { page, limit: 20 } });
+    return { items: res.data.bookings, pagination: res.data.pagination };
   }, []);
+
+  const { items: bookings, loading, loadingMore, sentinelRef } = useInfiniteScroll(fetchBookings);
 
   if (loading) {
     return (
@@ -101,6 +100,7 @@ export default function MyBookingsPage() {
               </Card>
             </motion.div>
           ))}
+          <LoadingMore ref={sentinelRef} loading={loadingMore} />
         </div>
       )}
     </div>

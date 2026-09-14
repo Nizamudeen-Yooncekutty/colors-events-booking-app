@@ -1,0 +1,872 @@
+{
+  "info": {
+    "name": "UST QPass - Event Booking API",
+    "description": "Complete API collection for UST QPass (Colours Event Booking) — a digital event token system with QR-based check-in.\n\n## Setup\n1. Create an environment with variables: `baseUrl`, `authToken`, `adminToken`.\n2. Authenticate via Azure AD SSO to get a JWT token.\n3. Set `authToken` and `adminToken` from SSO login responses.\n\n## Authentication\nAll protected endpoints require `Authorization: Bearer <token>` header. Authentication is via Azure AD SSO only.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5001/api",
+      "type": "string"
+    },
+    {
+      "key": "authToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "adminToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "eventId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "bookingId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "employeeId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{authToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Check if the API server is running. No authentication required."
+          },
+          "response": [
+            {
+              "name": "200 - OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"status\": \"ok\",\n  \"timestamp\": \"2026-08-10T12:00:00.000Z\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "description": "Authentication endpoints — SSO login and profile.",
+      "item": [
+        {
+          "name": "SSO Login (Azure AD)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const res = pm.response.json();",
+                  "    pm.collectionVariables.set('authToken', res.token);",
+                  "    pm.collectionVariables.set('employeeId', res.employee.employeeId);",
+                  "    if (res.employee.role === 'admin') {",
+                  "        pm.collectionVariables.set('adminToken', res.token);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer <azure-ad-id-token>" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/sso",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "sso"]
+            },
+            "description": "Authenticate using an Azure AD ID token (RS256/JWKS verified).\n\nPass the Azure AD ID token in the `Authorization: Bearer` header. The server verifies the token via Microsoft's JWKS endpoint, then creates or updates the employee record and returns a local JWT."
+          },
+          "response": [
+            {
+              "name": "200 - SSO Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"employee\": {\n    \"_id\": \"64a...\",\n    \"employeeId\": \"john.doe@ust.com\",\n    \"name\": \"John Doe\",\n    \"email\": \"john.doe@ust.com\",\n    \"role\": \"employee\",\n    \"isActive\": true\n  },\n  \"token\": \"eyJhbGciOi...\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get My Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "me"]
+            },
+            "description": "Get the currently authenticated employee's profile.\n\nRequires: `Authorization: Bearer <token>`"
+          },
+          "response": [
+            {
+              "name": "200 - Profile",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"employee\": {\n    \"_id\": \"64a...\",\n    \"employeeId\": \"EMP001\",\n    \"name\": \"John Doe\",\n    \"email\": \"john.doe@example.com\",\n    \"department\": \"Engineering\",\n    \"role\": \"employee\",\n    \"isActive\": true\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Events",
+      "description": "Event management endpoints. Employees can view active events; admins can create, update, and delete.",
+      "item": [
+        {
+          "name": "List Events",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/events",
+              "host": ["{{baseUrl}}"],
+              "path": ["events"],
+              "query": [
+                { "key": "page", "value": "1", "description": "Page number (default: 1)", "disabled": true },
+                { "key": "limit", "value": "20", "description": "Items per page (default: 20, max 100)", "disabled": true }
+              ]
+            },
+            "description": "List all events.\n\n- **Employees** see only `active` events.\n- **Admins** see all events (draft, active, closed, completed).\n\nEach event includes `bookingCount` and `checkedInCount`."
+          },
+          "response": [
+            {
+              "name": "200 - Event List",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"events\": [\n    {\n      \"_id\": \"64a...\",\n      \"title\": \"Colours Day 2026\",\n      \"eventDate\": \"2026-09-15T09:00:00.000Z\",\n      \"venue\": \"UST Campus Auditorium\",\n      \"status\": \"active\",\n      \"maxCapacity\": 500,\n      \"bookingCount\": 120,\n      \"checkedInCount\": 45,\n      \"timeSlots\": [],\n      \"foodOptions\": []\n    }\n  ],\n  \"pagination\": {\n    \"page\": 1,\n    \"limit\": 20,\n    \"total\": 5,\n    \"totalPages\": 1,\n    \"hasMore\": false\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Event by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/events/{{eventId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["events", "{{eventId}}"]
+            },
+            "description": "Get detailed information about a single event.\n\nResponse includes:\n- `bookingCount`, `checkedInCount`\n- `foodBreakdown`: count by food preference\n- `slotCounts`: count by time slot\n- `userBooking`: the current user's booking for this event (or `null`)"
+          },
+          "response": [
+            {
+              "name": "200 - Event Detail",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"event\": {\n    \"_id\": \"64a...\",\n    \"title\": \"Colours Day 2026\",\n    \"eventDate\": \"2026-09-15T09:00:00.000Z\",\n    \"venue\": \"UST Campus Auditorium\",\n    \"location\": \"Building A, Floor 3\",\n    \"maxCapacity\": 500,\n    \"status\": \"active\",\n    \"timeSlots\": [\n      {\n        \"_id\": \"64b...\",\n        \"label\": \"Morning\",\n        \"startTime\": \"09:00\",\n        \"endTime\": \"12:00\",\n        \"maxCapacity\": 250\n      }\n    ],\n    \"foodOptions\": [\n      { \"_id\": \"64c...\", \"name\": \"Vegetarian\" },\n      { \"_id\": \"64d...\", \"name\": \"Non-Vegetarian\" }\n    ],\n    \"bookingCount\": 120,\n    \"checkedInCount\": 45,\n    \"foodBreakdown\": { \"Vegetarian\": 60, \"Non-Vegetarian\": 60 },\n    \"slotCounts\": { \"Morning\": 80, \"Afternoon\": 40 }\n  },\n  \"userBooking\": null\n}"
+            }
+          ]
+        },
+        {
+          "name": "Create Event (Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const res = pm.response.json();",
+                  "    pm.collectionVariables.set('eventId', res.event._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Colours Day 2026\",\n  \"description\": \"Annual celebration event for all employees\",\n  \"eventDate\": \"2026-09-15T09:00:00.000Z\",\n  \"venue\": \"UST Campus Auditorium\",\n  \"location\": \"Building A, Floor 3\",\n  \"registrationStart\": \"2026-08-15T00:00:00.000Z\",\n  \"registrationEnd\": \"2026-09-14T23:59:59.000Z\",\n  \"maxCapacity\": 500,\n  \"status\": \"active\",\n  \"timeSlots\": [\n    {\n      \"label\": \"Morning\",\n      \"startTime\": \"09:00\",\n      \"endTime\": \"12:00\",\n      \"maxCapacity\": 250\n    },\n    {\n      \"label\": \"Afternoon\",\n      \"startTime\": \"13:00\",\n      \"endTime\": \"17:00\",\n      \"maxCapacity\": 250\n    }\n  ],\n  \"foodOptions\": [\n    { \"name\": \"Vegetarian\", \"description\": \"Pure veg meals\" },\n    { \"name\": \"Non-Vegetarian\", \"description\": \"Non-veg meals\" },\n    { \"name\": \"Vegan\", \"description\": \"Plant-based meals\" }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/events",
+              "host": ["{{baseUrl}}"],
+              "path": ["events"]
+            },
+            "description": "Create a new event. **Admin only.**\n\n**Required fields:** `title`, `eventDate`, `venue`, `registrationStart`, `registrationEnd`\n\n**Optional fields:** `description`, `location`, `maxCapacity` (0 = unlimited), `status`, `timeSlots`, `foodOptions`\n\n**Auto-saves** the new event ID to `eventId` collection variable."
+          },
+          "response": [
+            {
+              "name": "201 - Event Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"event\": {\n    \"_id\": \"64a...\",\n    \"title\": \"Colours Day 2026\",\n    \"eventDate\": \"2026-09-15T09:00:00.000Z\",\n    \"venue\": \"UST Campus Auditorium\",\n    \"status\": \"active\",\n    \"maxCapacity\": 500,\n    \"timeSlots\": [],\n    \"foodOptions\": [],\n    \"createdBy\": \"64x...\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update Event (Admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Colours Day 2026 - Updated\",\n  \"maxCapacity\": 600,\n  \"status\": \"active\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/events/{{eventId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["events", "{{eventId}}"]
+            },
+            "description": "Update an existing event. **Admin only.**\n\nAll fields are optional — only include the fields you want to change."
+          },
+          "response": [
+            {
+              "name": "200 - Event Updated",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"event\": {\n    \"_id\": \"64a...\",\n    \"title\": \"Colours Day 2026 - Updated\",\n    \"maxCapacity\": 600,\n    \"status\": \"active\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Delete Event (Admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/events/{{eventId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["events", "{{eventId}}"]
+            },
+            "description": "Delete an event and cancel all associated bookings. **Admin only.**"
+          },
+          "response": [
+            {
+              "name": "200 - Event Deleted",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"message\": \"Event deleted\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Bookings",
+      "description": "Booking management — create, view, cancel bookings and QR check-in scanning.",
+      "item": [
+        {
+          "name": "Create Booking",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const res = pm.response.json();",
+                  "    pm.collectionVariables.set('bookingId', res.booking._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"{{eventId}}\",\n  \"foodPreference\": \"Vegetarian\",\n  \"timeSlotId\": \"\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/bookings",
+              "host": ["{{baseUrl}}"],
+              "path": ["bookings"]
+            },
+            "description": "Create a booking for the current user.\n\n**Required:** `eventId`, `foodPreference`\n**Optional:** `timeSlotId` (if event has time slots)\n\n**Business rules:**\n- One booking per employee per event\n- Event must be `active` with open registration\n- Capacity limits are enforced (event-level and slot-level)\n\n**Auto-saves** the booking ID to `bookingId` collection variable."
+          },
+          "response": [
+            {
+              "name": "201 - Booking Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"booking\": {\n    \"_id\": \"64b...\",\n    \"employee\": { \"_id\": \"64a...\", \"name\": \"John Doe\", \"employeeId\": \"EMP001\" },\n    \"event\": { \"_id\": \"64a...\", \"title\": \"Colours Day 2026\" },\n    \"foodPreference\": \"Vegetarian\",\n    \"status\": \"confirmed\",\n    \"qrCode\": \"data:image/png;base64,...\",\n    \"qrData\": \"QPASS-64b...-1723...\"\n  }\n}"
+            },
+            {
+              "name": "400 - Already Booked",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"message\": \"You have already booked this event\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get My Bookings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/bookings/my",
+              "host": ["{{baseUrl}}"],
+              "path": ["bookings", "my"],
+              "query": [
+                { "key": "page", "value": "1", "description": "Page number (default: 1)", "disabled": true },
+                { "key": "limit", "value": "20", "description": "Items per page (default: 20, max 100)", "disabled": true }
+              ]
+            },
+            "description": "Get all bookings for the currently authenticated user. Returns bookings populated with event details."
+          },
+          "response": [
+            {
+              "name": "200 - My Bookings",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"bookings\": [\n    {\n      \"_id\": \"64b...\",\n      \"event\": {\n        \"_id\": \"64a...\",\n        \"title\": \"Colours Day 2026\",\n        \"eventDate\": \"2026-09-15T09:00:00.000Z\",\n        \"venue\": \"UST Campus Auditorium\"\n      },\n      \"foodPreference\": \"Vegetarian\",\n      \"status\": \"confirmed\",\n      \"qrCode\": \"data:image/png;base64,...\"\n    }\n  ],\n  \"pagination\": {\n    \"page\": 1,\n    \"limit\": 20,\n    \"total\": 3,\n    \"totalPages\": 1,\n    \"hasMore\": false\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Booking by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/bookings/{{bookingId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["bookings", "{{bookingId}}"]
+            },
+            "description": "Get a single booking by ID.\n\n- Employees can only view their own bookings.\n- Admins and volunteers can view any booking.\n\nIf the booking doesn't have a QR code yet, one is generated on demand."
+          },
+          "response": [
+            {
+              "name": "200 - Booking Detail",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"booking\": {\n    \"_id\": \"64b...\",\n    \"employee\": { \"_id\": \"64a...\", \"name\": \"John Doe\" },\n    \"event\": { \"_id\": \"64a...\", \"title\": \"Colours Day 2026\" },\n    \"foodPreference\": \"Vegetarian\",\n    \"status\": \"confirmed\",\n    \"qrCode\": \"data:image/png;base64,...\",\n    \"qrData\": \"QPASS-64b...-1723...\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Cancel Booking",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/bookings/{{bookingId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["bookings", "{{bookingId}}"]
+            },
+            "description": "Cancel a booking.\n\n- Employees can cancel their own bookings.\n- Admins can cancel any booking.\n- Cannot cancel after check-in (`checked_in` status)."
+          },
+          "response": [
+            {
+              "name": "200 - Booking Cancelled",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"message\": \"Booking cancelled successfully\",\n  \"booking\": {\n    \"_id\": \"64b...\",\n    \"status\": \"cancelled\"\n  }\n}"
+            },
+            {
+              "name": "400 - Already Checked In",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"message\": \"Cannot cancel a booking that has already been checked in\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Scan QR Code (Check-in)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"qrData\": \"QPASS-64b...-1723...\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/bookings/scan",
+              "host": ["{{baseUrl}}"],
+              "path": ["bookings", "scan"]
+            },
+            "description": "Scan a QR code to check in an attendee. **Admin or Volunteer only.**\n\n**Response scenarios:**\n- `200`: Successful check-in\n- `400 (walk_in_qr)`: QR belongs to a walk-in category — redirect to walk-in flow\n- `400`: Already checked in or cancelled\n- `404`: Invalid QR code"
+          },
+          "response": [
+            {
+              "name": "200 - Check-in Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"message\": \"Check-in successful\",\n  \"valid\": true,\n  \"booking\": {\n    \"_id\": \"64b...\",\n    \"status\": \"checked_in\",\n    \"checkedInAt\": \"2026-09-15T10:30:00.000Z\"\n  }\n}"
+            },
+            {
+              "name": "400 - Walk-in QR",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"message\": \"walk_in_qr\",\n  \"isWalkInQR\": true,\n  \"qrData\": \"WALKIN-guest-64a...\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Lookup Bookings by Employee",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employeeId\": \"EMP001\",\n  \"eventId\": \"{{eventId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/bookings/lookup",
+              "host": ["{{baseUrl}}"],
+              "path": ["bookings", "lookup"]
+            },
+            "description": "Look up bookings by employee ID. **Admin or Volunteer only.**\n\nOptionally filter by `eventId` to find a specific event booking."
+          },
+          "response": [
+            {
+              "name": "200 - Bookings Found",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"bookings\": [\n    {\n      \"_id\": \"64b...\",\n      \"employee\": { \"employeeId\": \"EMP001\", \"name\": \"John Doe\" },\n      \"event\": { \"title\": \"Colours Day 2026\" },\n      \"status\": \"confirmed\"\n    }\n  ]\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Walk-ins",
+      "description": "Walk-in attendee management — register guests, staff, housekeeping, and unregistered employees at the door.",
+      "item": [
+        {
+          "name": "Register Walk-in",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"{{eventId}}\",\n  \"attendeeType\": \"guest\",\n  \"name\": \"Jane Smith\",\n  \"phone\": \"+9876543210\",\n  \"email\": \"jane.smith@example.com\",\n  \"department\": \"Visitor\",\n  \"foodPreference\": \"Vegetarian\",\n  \"notes\": \"VIP guest from partner company\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/walkins",
+              "host": ["{{baseUrl}}"],
+              "path": ["walkins"]
+            },
+            "description": "Register a walk-in attendee. **Admin or Volunteer only.**\n\n**Required:** `eventId`, `attendeeType`\n\n**Attendee types:** `guest`, `staff`, `housekeeping`, `unregistered_employee`\n\n**Optional:** `name`, `phone`, `email`, `department`, `notes`, `employeeId`, `foodPreference`, `timeSlotId`"
+          },
+          "response": [
+            {
+              "name": "201 - Walk-in Registered",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"message\": \"Walk-in registered successfully\",\n  \"walkIn\": {\n    \"_id\": \"64c...\",\n    \"event\": \"64a...\",\n    \"attendeeType\": \"guest\",\n    \"name\": \"Jane Smith\",\n    \"checkedInAt\": \"2026-09-15T10:45:00.000Z\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Scan Walk-in QR",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"qrData\": \"WALKIN-guest-64a...\",\n  \"name\": \"Walk-in Guest\",\n  \"phone\": \"+1111111111\",\n  \"department\": \"Visitor\",\n  \"foodPreference\": \"Non-Vegetarian\",\n  \"notes\": \"Arrived without prior registration\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/walkins/scan",
+              "host": ["{{baseUrl}}"],
+              "path": ["walkins", "scan"]
+            },
+            "description": "Scan a walk-in category QR code to register a walk-in attendee. **Admin or Volunteer only.**\n\nThe QR data encodes the attendee type and event ID. Optional fields can capture attendee details."
+          },
+          "response": [
+            {
+              "name": "201 - Walk-in Scanned",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"message\": \"Walk-in registered\",\n  \"walkIn\": {\n    \"_id\": \"64c...\",\n    \"attendeeType\": \"guest\",\n    \"name\": \"Walk-in Guest\"\n  },\n  \"typeCount\": 5,\n  \"attendeeType\": \"guest\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Walk-in QR Codes for Event",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/walkins/event/{{eventId}}/qrcodes",
+              "host": ["{{baseUrl}}"],
+              "path": ["walkins", "event", "{{eventId}}", "qrcodes"]
+            },
+            "description": "Get the 4 category QR codes for walk-in registration at an event. **Admin or Volunteer only.**\n\nReturns one QR code per attendee type: `guest`, `staff`, `housekeeping`, `unregistered_employee`. These QR codes are printed and placed at check-in stations."
+          },
+          "response": [
+            {
+              "name": "200 - Walk-in QR Codes",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"event\": { \"_id\": \"64a...\", \"title\": \"Colours Day 2026\" },\n  \"qrCodes\": [\n    {\n      \"type\": \"guest\",\n      \"label\": \"Guest\",\n      \"qrData\": \"WALKIN-guest-64a...\",\n      \"qrImage\": \"data:image/png;base64,...\",\n      \"color\": \"#4CAF50\",\n      \"count\": 12\n    },\n    {\n      \"type\": \"staff\",\n      \"label\": \"Staff\",\n      \"qrData\": \"WALKIN-staff-64a...\",\n      \"qrImage\": \"data:image/png;base64,...\",\n      \"color\": \"#2196F3\",\n      \"count\": 8\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "List Walk-ins for Event",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/walkins/event/{{eventId}}?type=guest&search=jane",
+              "host": ["{{baseUrl}}"],
+              "path": ["walkins", "event", "{{eventId}}"],
+              "query": [
+                { "key": "type", "value": "guest", "description": "Filter by attendee type: guest, staff, housekeeping, unregistered_employee" },
+                { "key": "search", "value": "jane", "description": "Search by name, phone, email, or employee ID" },
+                { "key": "page", "value": "1", "description": "Page number (default: 1)", "disabled": true },
+                { "key": "limit", "value": "20", "description": "Items per page (default: 20, max 100)", "disabled": true }
+              ]
+            },
+            "description": "List all walk-in attendees for an event. **Admin or Volunteer only.**\n\n**Query params:**\n- `type`: Filter by attendee type\n- `search`: Search across name, phone, email, employee ID"
+          },
+          "response": [
+            {
+              "name": "200 - Walk-in List",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"walkIns\": [\n    {\n      \"_id\": \"64c...\",\n      \"attendeeType\": \"guest\",\n      \"name\": \"Jane Smith\",\n      \"checkedInAt\": \"2026-09-15T10:45:00.000Z\"\n    }\n  ],\n  \"stats\": {\n    \"total\": 25,\n    \"guest\": 12,\n    \"staff\": 8,\n    \"housekeeping\": 3,\n    \"unregisteredEmployee\": 2\n  },\n  \"pagination\": {\n    \"page\": 1,\n    \"limit\": 20,\n    \"total\": 25,\n    \"totalPages\": 2,\n    \"hasMore\": true\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "description": "Admin-only endpoints — dashboard, reports, employee management, and role assignments.",
+      "item": [
+        {
+          "name": "Dashboard",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/dashboard",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "dashboard"],
+              "query": [
+                { "key": "page", "value": "1", "description": "Page number for events list (default: 1)", "disabled": true },
+                { "key": "limit", "value": "20", "description": "Items per page (default: 20, max 100)", "disabled": true }
+              ]
+            },
+            "description": "Get admin dashboard statistics. **Admin only.**\n\nReturns aggregate counts and all events with booking, check-in, and walk-in stats."
+          },
+          "response": [
+            {
+              "name": "200 - Dashboard Stats",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"stats\": {\n    \"totalEmployees\": 150,\n    \"totalEvents\": 5,\n    \"activeEvents\": 2,\n    \"totalBookings\": 320,\n    \"totalCheckedIn\": 180,\n    \"totalWalkIns\": 45,\n    \"walkInStats\": {\n      \"guest\": 20,\n      \"staff\": 15,\n      \"housekeeping\": 5,\n      \"unregisteredEmployee\": 5\n    }\n  },\n  \"events\": [\n    {\n      \"_id\": \"64a...\",\n      \"title\": \"Colours Day 2026\",\n      \"eventDate\": \"2026-09-15T09:00:00.000Z\",\n      \"status\": \"active\"\n    }\n  ],\n  \"pagination\": {\n    \"page\": 1,\n    \"limit\": 20,\n    \"total\": 5,\n    \"totalPages\": 1,\n    \"hasMore\": false\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Event Bookings",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/events/{{eventId}}/bookings?status=confirmed&search=john&food=Vegetarian",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "events", "{{eventId}}", "bookings"],
+              "query": [
+                { "key": "status", "value": "confirmed", "description": "Filter: confirmed, checked_in, cancelled" },
+                { "key": "search", "value": "john", "description": "Search by name or employee ID" },
+                { "key": "food", "value": "Vegetarian", "description": "Filter by food preference" },
+                { "key": "role", "value": "", "description": "Filter by role: employee, admin, volunteer", "disabled": true },
+                { "key": "slot", "value": "", "description": "Filter by time slot label", "disabled": true },
+                { "key": "page", "value": "1", "description": "Page number (default: 1)", "disabled": true },
+                { "key": "limit", "value": "20", "description": "Items per page (default: 20, max 100)", "disabled": true }
+              ]
+            },
+            "description": "Get all bookings for a specific event with filtering. **Admin only.**\n\n**Filters:** `status`, `role`, `food`, `search`, `slot`"
+          },
+          "response": [
+            {
+              "name": "200 - Event Bookings",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"bookings\": [\n    {\n      \"_id\": \"64b...\",\n      \"employee\": { \"employeeId\": \"EMP001\", \"name\": \"John Doe\", \"department\": \"Engineering\" },\n      \"foodPreference\": \"Vegetarian\",\n      \"status\": \"confirmed\",\n      \"timeSlotLabel\": \"Morning\"\n    }\n  ],\n  \"stats\": {\n    \"total\": 120,\n    \"confirmed\": 75,\n    \"checkedIn\": 40,\n    \"cancelled\": 5\n  },\n  \"pagination\": {\n    \"page\": 1,\n    \"limit\": 20,\n    \"total\": 120,\n    \"totalPages\": 6,\n    \"hasMore\": true\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Event Report",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/events/{{eventId}}/report",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "events", "{{eventId}}", "report"]
+            },
+            "description": "Get a comprehensive report for an event. **Admin only.**\n\nIncludes attendee classification, food breakdown, slot breakdown, check-in timeline, and full booking/walk-in lists."
+          },
+          "response": [
+            {
+              "name": "200 - Event Report",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"event\": { \"title\": \"Colours Day 2026\" },\n  \"classification\": { \"registered\": 120, \"walkIn\": 25 },\n  \"totalAttendees\": 145,\n  \"foodBreakdown\": { \"Vegetarian\": 80, \"Non-Vegetarian\": 65 },\n  \"slotBreakdown\": { \"Morning\": 85, \"Afternoon\": 60 },\n  \"checkInTimeline\": [\n    { \"hour\": \"09:00\", \"count\": 30 },\n    { \"hour\": \"10:00\", \"count\": 45 }\n  ],\n  \"bookings\": [],\n  \"walkIns\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "Download Event Report (CSV)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/events/{{eventId}}/report/download",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "events", "{{eventId}}", "report", "download"]
+            },
+            "description": "Download the event report as a CSV file. **Admin only.**\n\nResponse `Content-Type: text/csv` — save the response as a `.csv` file."
+          },
+          "response": []
+        },
+        {
+          "name": "List Employees",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/employees?search=john&role=employee",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "employees"],
+              "query": [
+                { "key": "search", "value": "john", "description": "Search by name, email, or employee ID" },
+                { "key": "role", "value": "employee", "description": "Filter by role: employee, admin, volunteer" },
+                { "key": "page", "value": "1", "description": "Page number (default: 1)", "disabled": true },
+                { "key": "limit", "value": "20", "description": "Items per page (default: 20, max 100)", "disabled": true }
+              ]
+            },
+            "description": "List all employees with optional search and role filter. **Admin only.**"
+          },
+          "response": [
+            {
+              "name": "200 - Employee List",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"employees\": [\n    {\n      \"_id\": \"64a...\",\n      \"employeeId\": \"EMP001\",\n      \"name\": \"John Doe\",\n      \"email\": \"john.doe@example.com\",\n      \"department\": \"Engineering\",\n      \"role\": \"employee\",\n      \"isActive\": true\n    }\n  ],\n  \"total\": 150,\n  \"pagination\": {\n    \"page\": 1,\n    \"limit\": 20,\n    \"total\": 150,\n    \"totalPages\": 8,\n    \"hasMore\": true\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update Employee Role",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"volunteer\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/employees/{{employeeId}}/role",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "employees", "{{employeeId}}", "role"]
+            },
+            "description": "Update an employee's role. **Admin only.**\n\n**Allowed roles:** `employee`, `admin`, `volunteer`\n\nNote: `{{employeeId}}` here is the MongoDB `_id`, not the `employeeId` field."
+          },
+          "response": [
+            {
+              "name": "200 - Role Updated",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"employee\": {\n    \"_id\": \"64a...\",\n    \"employeeId\": \"EMP001\",\n    \"name\": \"John Doe\",\n    \"role\": \"volunteer\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "List Role Users",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/role-users",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "role-users"]
+            },
+            "description": "List all pre-assigned role users (admin/volunteer whitelist). **Admin only.**\n\nRole users are email-based entries that automatically assign roles when users register or SSO login."
+          },
+          "response": [
+            {
+              "name": "200 - Role Users",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"roleUsers\": [\n    {\n      \"_id\": \"64d...\",\n      \"email\": \"admin@ust.com\",\n      \"name\": \"Admin User\",\n      \"role\": \"admin\",\n      \"isActive\": true\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Add Role User",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"volunteer@ust.com\",\n  \"role\": \"volunteer\",\n  \"name\": \"New Volunteer\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/role-users",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "role-users"]
+            },
+            "description": "Add a new role user to the whitelist. **Admin only.**\n\nIf the email already exists, the role is updated instead (returns `200` instead of `201`)."
+          },
+          "response": [
+            {
+              "name": "201 - Role User Added",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"message\": \"Role user added successfully\",\n  \"roleUser\": {\n    \"_id\": \"64d...\",\n    \"email\": \"volunteer@ust.com\",\n    \"name\": \"New Volunteer\",\n    \"role\": \"volunteer\",\n    \"isActive\": true\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Delete Role User",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/role-users/{{roleUserId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "role-users", "{{roleUserId}}"]
+            },
+            "description": "Remove a role user from the whitelist. **Admin only.**"
+          },
+          "response": [
+            {
+              "name": "200 - Role User Deleted",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"message\": \"Role user removed successfully\"\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

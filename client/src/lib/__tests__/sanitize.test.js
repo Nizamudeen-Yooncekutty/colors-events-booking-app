@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import {
-  hasSQLInjection,
   hasXSS,
   sanitizeInput,
   isUnsafeInput,
@@ -9,41 +8,6 @@ import {
   sanitizePhone,
   sanitizeEmail,
 } from '../sanitize';
-
-describe('hasSQLInjection', () => {
-  it('detects SELECT statement', () => {
-    expect(hasSQLInjection("'; SELECT * FROM users --")).toBe(true);
-  });
-
-  it('detects DROP TABLE', () => {
-    expect(hasSQLInjection('DROP TABLE employees')).toBe(true);
-  });
-
-  it('detects UNION injection', () => {
-    expect(hasSQLInjection("1 UNION SELECT password FROM users")).toBe(true);
-  });
-
-  it('detects SQL comment markers', () => {
-    expect(hasSQLInjection('admin --')).toBe(true);
-  });
-
-  it('detects block comment markers', () => {
-    expect(hasSQLInjection('/* comment */')).toBe(true);
-  });
-
-  it('allows normal text', () => {
-    expect(hasSQLInjection('John Doe')).toBe(false);
-  });
-
-  it('allows normal sentences', () => {
-    expect(hasSQLInjection('Please select your food preference')).toBe(true);
-  });
-
-  it('returns false for non-string', () => {
-    expect(hasSQLInjection(123)).toBe(false);
-    expect(hasSQLInjection(null)).toBe(false);
-  });
-});
 
 describe('hasXSS', () => {
   it('detects script tags', () => {
@@ -111,16 +75,16 @@ describe('sanitizeInput', () => {
 });
 
 describe('isUnsafeInput', () => {
-  it('detects SQL injection', () => {
-    expect(isUnsafeInput("'; DROP TABLE users")).toBe(true);
-  });
-
   it('detects XSS', () => {
     expect(isUnsafeInput('<script>alert(1)</script>')).toBe(true);
   });
 
   it('allows safe input', () => {
     expect(isUnsafeInput('John Doe')).toBe(false);
+  });
+
+  it('allows normal sentences with SQL-like words', () => {
+    expect(isUnsafeInput('Please select your food preference')).toBe(false);
   });
 });
 

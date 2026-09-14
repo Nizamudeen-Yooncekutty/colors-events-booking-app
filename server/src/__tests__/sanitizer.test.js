@@ -2,33 +2,8 @@ const {
   sanitizeString,
   sanitizeObject,
   runSecurityChecks,
-  hasSQLInjection,
   hasNoSQLInjection,
 } = require('../utils/sanitizer');
-
-describe('hasSQLInjection', () => {
-  test('detects SELECT', () => {
-    expect(hasSQLInjection("'; SELECT * FROM users")).toBe(true);
-  });
-  test('detects DROP TABLE', () => {
-    expect(hasSQLInjection('DROP TABLE employees')).toBe(true);
-  });
-  test('detects UNION', () => {
-    expect(hasSQLInjection('1 UNION SELECT 1')).toBe(true);
-  });
-  test('detects DELETE', () => {
-    expect(hasSQLInjection("DELETE FROM bookings WHERE 1=1")).toBe(true);
-  });
-  test('detects SQL comments', () => {
-    expect(hasSQLInjection('admin --')).toBe(true);
-  });
-  test('allows normal text', () => {
-    expect(hasSQLInjection('John Doe')).toBe(false);
-  });
-  test('returns false for non-string', () => {
-    expect(hasSQLInjection(123)).toBe(false);
-  });
-});
 
 describe('hasNoSQLInjection', () => {
   test('detects $where operator', () => {
@@ -91,8 +66,8 @@ describe('sanitizeObject', () => {
 });
 
 describe('runSecurityChecks', () => {
-  test('detects SQL injection in string', () => {
-    expect(runSecurityChecks("'; DROP TABLE users")).toBeTruthy();
+  test('allows normal sentences with SQL-like words', () => {
+    expect(runSecurityChecks('Please select your food preference')).toBeNull();
   });
   test('detects NoSQL injection in object', () => {
     expect(runSecurityChecks({ password: { $ne: '' } })).toBeTruthy();
@@ -106,8 +81,8 @@ describe('runSecurityChecks', () => {
   test('detects null bytes', () => {
     expect(runSecurityChecks('file\x00.txt')).toBeTruthy();
   });
-  test('detects nested threats', () => {
-    expect(runSecurityChecks({ data: { value: "'; DROP TABLE x" } })).toBeTruthy();
+  test('detects nested NoSQL threats', () => {
+    expect(runSecurityChecks({ data: { $ne: '' } })).toBeTruthy();
   });
   test('allows safe data', () => {
     expect(runSecurityChecks({ name: 'John', email: 'john@test.com' })).toBeNull();

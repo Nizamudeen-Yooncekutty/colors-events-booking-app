@@ -1,10 +1,12 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const { body, param } = require('express-validator');
 const WalkIn = require('../models/WalkIn');
 const Event = require('../models/Event');
 const { protect, adminOrVolunteer, adminOnly } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validate');
 const { getSlotColor, generateWalkInQRData, generateWalkInQRImage, isWalkInQR, parseWalkInQR, WALKIN_TYPE_COLORS } = require('../utils/qrcode');
+const { parsePagination, paginationMeta } = require('../utils/paginate');
 
 const router = express.Router();
 
@@ -31,6 +33,9 @@ router.post('/', protect, adminOrVolunteer, [
     return true;
   }),
   body('department').optional().trim().isLength({ max: 100 }).withMessage('Department must be at most 100 characters'),
+  body('employeeId').optional().trim().isAlphanumeric().isLength({ max: 20 }).withMessage('Employee ID must be alphanumeric (max 20 chars)'),
+  body('foodPreference').optional().trim().isLength({ max: 100 }).withMessage('Food preference must be under 100 characters'),
+  body('timeSlotId').optional().isMongoId().withMessage('Invalid time slot ID'),
   body('notes').optional().trim().isLength({ max: 500 }).withMessage('Notes must be at most 500 characters'),
 ], handleValidationErrors, async (req, res) => {
   try {
@@ -179,33 +184,41 @@ router.get('/event/:eventId', protect, adminOrVolunteer, [
 ], handleValidationErrors, async (req, res) => {
   try {
     const { type, search } = req.query;
-    const filter = { event: req.params.eventId };
+    const filter = { event: new mongoose.Types.ObjectId(req.params.eventId) };
 
     if (type) filter.attendeeType = type;
-
-    let walkIns = await WalkIn.find(filter)
-      .populate('checkedInBy', 'name employeeId')
-      .populate('event', 'title eventDate venue')
-      .sort({ createdAt: -1 });
-
     if (search) {
-      const s = search.toLowerCase();
-      walkIns = walkIns.filter(w =>
-        w.name.toLowerCase().includes(s) ||
-        (w.employeeId && w.employeeId.toLowerCase().includes(s)) ||
-        (w.phone && w.phone.includes(s))
-      );
+      const searchRegex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      filter.$or = [
+        { name: searchRegex },
+        { employeeId: searchRegex },
+        { phone: searchRegex },
+      ];
     }
 
-    const stats = {
-      total: walkIns.length,
-      guest: walkIns.filter(w => w.attendeeType === 'guest').length,
-      staff: walkIns.filter(w => w.attendeeType === 'staff').length,
-      housekeeping: walkIns.filter(w => w.attendeeType === 'housekeeping').length,
-      unregisteredEmployee: walkIns.filter(w => w.attendeeType === 'unregistered_employee').length,
-    };
+    // Stats from full filtered set (before pagination)
+    const statsAgg = await WalkIn.aggregate([
+      { $match: filter },
+      { $group: { _id: '$attendeeType', count: { $sum: 1 } } },
+    ]);
+    const stats = { total: 0, guest: 0, staff: 0, housekeeping: 0, unregisteredEmployee: 0 };
+    const typeKeyMap = { guest: 'guest', staff: 'staff', housekeeping: 'housekeeping', unregistered_employee: 'unregisteredEmployee' };
+    statsAgg.forEach(s => {
+      stats.total += s.count;
+      const key = typeKeyMap[s._id];
+      if (key) stats[key] = s.count;
+    });
 
-    res.json({ walkIns, stats });
+    const { page, limit, skip } = parsePagination(req.query);
+
+    const walkIns = await WalkIn.find(filter)
+      .populate('checkedInBy', 'name employeeId')
+      .populate('event', 'title eventDate venue')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    res.json({ walkIns, stats, pagination: paginationMeta(stats.total, page, limit) });
   } catch (error) {
     res.status(500).json({ message: 'An error occurred. Please try again.' });
   }

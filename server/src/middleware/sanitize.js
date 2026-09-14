@@ -1,9 +1,14 @@
 const { sanitizeObject, runSecurityChecks } = require('../utils/sanitizer');
 
 function sanitizeInputs(req, res, next) {
-  const securityViolation = runSecurityChecks(req.body);
-  if (securityViolation) {
-    return res.status(400).json({ message: securityViolation });
+  const bodyViolation = runSecurityChecks(req.body);
+  if (bodyViolation) {
+    return res.status(400).json({ message: bodyViolation });
+  }
+
+  const queryViolation = runSecurityChecks(req.query);
+  if (queryViolation) {
+    return res.status(400).json({ message: queryViolation });
   }
 
   if (req.body && typeof req.body === 'object') {

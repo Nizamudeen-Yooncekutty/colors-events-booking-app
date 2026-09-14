@@ -2,7 +2,7 @@ const ENV_CONFIG = {
   dev: {
     clientId: import.meta.env.VITE_MSAL_CLIENT_ID || '',
     tenantId: import.meta.env.VITE_MSAL_TENANT_ID || '',
-    redirectUri: import.meta.env.VITE_MSAL_REDIRECT_URI || 'http://localhost:5173',
+    redirectUri: import.meta.env.VITE_MSAL_REDIRECT_URI || window.location.origin,
     // Azure AD app registration must have this URI listed
   },
 };
@@ -15,10 +15,10 @@ export const msalConfig = {
     authority: `https://login.microsoftonline.com/${config.tenantId}`,
     redirectUri: config.redirectUri,
     postLogoutRedirectUri: config.redirectUri,
-    navigateToLoginRequestUrl: true,
+    navigateToLoginRequestUrl: false,
   },
   cache: {
-    cacheLocation: 'localStorage',
+    cacheLocation: 'sessionStorage',
     storeAuthStateInCookie: false,
   },
 };

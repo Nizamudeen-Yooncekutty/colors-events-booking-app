@@ -60,10 +60,16 @@ export default function RegisterPage() {
     }
     if (!form.password) {
       errors.password = 'Password is required';
-    } else if (form.password.length < 6) {
-      errors.password = 'Password must be at least 6 characters';
-    } else if (!/[a-zA-Z]/.test(form.password) || !/[0-9]/.test(form.password)) {
-      errors.password = 'Password must contain a letter and a number';
+    } else if (form.password.length < 8) {
+      errors.password = 'Password must be at least 8 characters';
+    } else if (!/[a-z]/.test(form.password)) {
+      errors.password = 'Password must contain a lowercase letter';
+    } else if (!/[A-Z]/.test(form.password)) {
+      errors.password = 'Password must contain an uppercase letter';
+    } else if (!/[0-9]/.test(form.password)) {
+      errors.password = 'Password must contain a number';
+    } else if (!/[!@#$%^&*(),.?":{}|<>]/.test(form.password)) {
+      errors.password = 'Password must contain a special character';
     }
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
@@ -146,7 +152,7 @@ export default function RegisterPage() {
             <div className="space-y-1.5">
               <Label htmlFor="password">Password *</Label>
               <div className="relative">
-                <Input id="password" name="password" type={showPassword ? 'text' : 'password'} placeholder="Min 6 characters" value={form.password} onChange={handleChange} required minLength={6} className={`${fieldErrors.password ? 'border-error' : 'border-ust-gray-400'} pr-10`} />
+                <Input id="password" name="password" type={showPassword ? 'text' : 'password'} placeholder="Min 8 characters" value={form.password} onChange={handleChange} required minLength={8} className={`${fieldErrors.password ? 'border-error' : 'border-ust-gray-400'} pr-10`} />
                 <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-ust-gray-500 hover:text-ust-gray-700 cursor-pointer border-0 bg-transparent p-0">
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>

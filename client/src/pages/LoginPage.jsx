@@ -101,7 +101,7 @@ export default function LoginPage() {
             <p className="text-xs text-ust-gray-800">Sign in to your account</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-3.5">
+          <div className="space-y-3.5">
             {error && (
               <motion.div
                 initial={{ opacity: 0, x: -10 }}
@@ -112,111 +112,36 @@ export default function LoginPage() {
               </motion.div>
             )}
 
-            <div className="space-y-1.5">
-              <Label htmlFor="employeeId">Employee ID *</Label>
-              <Input
-                id="employeeId"
-                placeholder="e.g. EMP001"
-                value={employeeId}
-                onChange={(e) => {
-                  setEmployeeId(sanitizeEmployeeId(e.target.value));
-                  setFieldErrors(prev => ({ ...prev, employeeId: '' }));
-                }}
-                required
-                maxLength={20}
-                className={`${fieldErrors.employeeId ? 'border-error' : 'border-ust-gray-400'} focus-visible:border-primary`}
-              />
-              {fieldErrors.employeeId && <p className="text-error text-[10px] font-medium mt-0.5">{fieldErrors.employeeId}</p>}
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="password">Password *</Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value);
-                    setFieldErrors(prev => ({ ...prev, password: '' }));
-                  }}
-                  required
-                  className={`${fieldErrors.password ? 'border-error' : 'border-ust-gray-400'} pr-10 focus-visible:border-primary`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-ust-gray-500 hover:text-ust-gray-700 cursor-pointer border-0 bg-transparent p-0"
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-              {fieldErrors.password && <p className="text-error text-[10px] font-medium mt-0.5">{fieldErrors.password}</p>}
-            </div>
-
-            <Button type="submit" className="w-full gap-2 rounded-full text-sm" size="lg" disabled={loading}>
-              {loading ? (
-                <>
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                  Signing in...
-                </>
-              ) : (
-                <>
-                  Sign In
-                  <ArrowRight className="h-4 w-4" />
-                </>
-              )}
-            </Button>
-
             {ssoEnabled && (
-              <>
-                <div className="flex items-center gap-3">
-                  <Separator className="flex-1" />
-                  <span className="text-[11px] text-ust-gray-500 sm:text-xs">OR</span>
-                  <Separator className="flex-1" />
-                </div>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full gap-2 rounded-full text-sm border-ust-gray-400"
-                  size="lg"
-                  onClick={handleSSOLogin}
-                  disabled={ssoLoading}
-                >
-                  {ssoLoading ? (
-                    <>
-                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                      Connecting...
-                    </>
-                  ) : (
-                    <>
-                      <Shield className="h-4 w-4 text-primary" />
-                      Sign in with UST SSO
-                    </>
-                  )}
-                </Button>
-              </>
+              <Button
+                type="button"
+                className="w-full gap-2 rounded-full text-sm"
+                size="lg"
+                onClick={handleSSOLogin}
+                disabled={ssoLoading}
+              >
+                {ssoLoading ? (
+                  <>
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Connecting to UST SSO...
+                  </>
+                ) : (
+                  <>
+                    <Shield className="h-4 w-4" />
+                    Sign in with UST SSO
+                  </>
+                )}
+              </Button>
             )}
 
-            <div className="flex items-center gap-3">
-              <Separator className="flex-1" />
-              <span className="text-[11px] text-ust-gray-500 sm:text-xs">OR</span>
-              <Separator className="flex-1" />
-            </div>
-
-            <p className="text-center text-xs text-muted-foreground sm:text-sm">
-              Don't have an account?{' '}
-              <Link to="/register" className="font-medium text-primary hover:underline">
-                Register
-              </Link>
+            <p className="text-center text-[11px] text-muted-foreground sm:text-xs">
+              Use your UST corporate credentials to sign in
             </p>
-          </form>
+          </div>
         </div>
 
         <p className="mt-3 text-center text-[11px] text-ust-gray-500 sm:mt-4 sm:text-xs">
-          Admin access? Use your admin Employee ID to login.
+          Secure authentication powered by Microsoft Azure AD
         </p>
         <div className="mt-3 text-center">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 px-3.5 py-1 shadow-sm">

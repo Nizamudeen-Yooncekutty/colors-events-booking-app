@@ -212,14 +212,7 @@ export default function Layout() {
 
       {/* ── Main Content ── */}
       <main className="mx-auto max-w-[1200px] px-3 py-4 sm:px-4 sm:py-6 lg:px-6 safe-bottom">
-        <motion.div
-          key={location.pathname}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2 }}
-        >
-          <Outlet />
-        </motion.div>
+        <Outlet />
       </main>
 
       {/* ── Powered by ── */}

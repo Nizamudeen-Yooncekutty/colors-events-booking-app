@@ -44,7 +44,12 @@ const generateQRData = (bookingId, employeeId, eventId) => {
 };
 
 const generateWalkInQRData = (eventId, attendeeType) => {
-  return `WALKIN:${attendeeType}:${eventId}`;
+  const data = `WALKIN:${attendeeType}:${eventId}`;
+  const sig = crypto.createHmac('sha256', process.env.JWT_SECRET)
+    .update(data)
+    .digest('hex')
+    .substring(0, 16);
+  return `${data}:${sig}`;
 };
 
 const isWalkInQR = (qrData) => {
@@ -53,7 +58,16 @@ const isWalkInQR = (qrData) => {
 
 const parseWalkInQR = (qrData) => {
   const parts = qrData.split(':');
-  if (parts.length !== 3 || parts[0] !== 'WALKIN') return null;
+  if (parts.length !== 4 || parts[0] !== 'WALKIN') return null;
+
+  const data = `WALKIN:${parts[1]}:${parts[2]}`;
+  const expectedSig = crypto.createHmac('sha256', process.env.JWT_SECRET)
+    .update(data)
+    .digest('hex')
+    .substring(0, 16);
+
+  if (parts[3] !== expectedSig) return null;
+
   return { attendeeType: parts[1], eventId: parts[2] };
 };
 

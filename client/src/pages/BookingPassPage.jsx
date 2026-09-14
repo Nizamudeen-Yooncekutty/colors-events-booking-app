@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   ArrowLeft, CalendarDays, MapPin, UtensilsCrossed,
-  User, Hash, CheckCircle2, Building2, Clock,
+  User, Hash, CheckCircle2, Building2, Clock, Download, X,
 } from 'lucide-react';
 
 import { getSlotColor, getSlotColorLight } from '@/lib/slotColors';
@@ -29,6 +29,15 @@ export default function BookingPassPage() {
   const navigate = useNavigate();
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showQRModal, setShowQRModal] = useState(false);
+
+  const downloadQR = () => {
+    if (!booking?.qrCode) return;
+    const a = document.createElement('a');
+    a.href = booking.qrCode;
+    a.download = `QPass_${booking.employee?.employeeId || 'pass'}_${booking.event?.title?.replace(/[^a-zA-Z0-9]/g, '_') || 'event'}.png`;
+    a.click();
+  };
 
   useEffect(() => {
     let retryTimer = null;
@@ -124,7 +133,7 @@ export default function BookingPassPage() {
                 }}
               >
                 {booking.qrCode ? (
-                  <img src={booking.qrCode} alt="QR Pass" className="h-36 w-36 sm:h-44 sm:w-44" />
+                  <img src={booking.qrCode} alt="QR Pass" className="h-36 w-36 sm:h-44 sm:w-44 cursor-pointer" onClick={() => setShowQRModal(true)} />
                 ) : (
                   <div className="h-36 w-36 sm:h-44 sm:w-44 flex flex-col items-center justify-center bg-ust-gray-200 rounded-lg">
                     <div className="h-6 w-6 animate-spin rounded-full border-3 border-primary border-t-transparent mb-2" />
@@ -184,8 +193,15 @@ export default function BookingPassPage() {
               </Badge>
             </div>
 
+            {booking.qrCode && (
+              <Button variant="outline" size="sm" className="mt-3 w-full gap-2 text-xs" onClick={downloadQR}>
+                <Download className="h-3.5 w-3.5" />
+                Download QR Code
+              </Button>
+            )}
+
             <p className="mt-3 text-center text-[10px] text-muted-foreground sm:text-xs">
-              Show this QR code at the venue for entry
+              Tap the QR code to view full screen &middot; Show at venue for entry
             </p>
 
             <div className="mt-3 flex justify-center">
@@ -197,6 +213,34 @@ export default function BookingPassPage() {
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* QR Full Screen Modal */}
+      {showQRModal && booking.qrCode && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/80 p-6"
+          onClick={() => setShowQRModal(false)}
+        >
+          <div className="relative" onClick={e => e.stopPropagation()}>
+            <button
+              onClick={() => setShowQRModal(false)}
+              className="absolute -top-10 right-0 rounded-full bg-white/20 p-1.5 text-white hover:bg-white/30 transition-colors"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <div className="rounded-2xl bg-white p-4 sm:p-6">
+              <img src={booking.qrCode} alt="QR Pass" className="h-64 w-64 sm:h-80 sm:w-80" />
+              <p className="mt-2 text-center text-xs font-medium text-foreground">{booking.employee?.name}</p>
+              <p className="text-center text-[10px] text-muted-foreground">{booking.event?.title}{booking.timeSlotLabel ? ` · ${booking.timeSlotLabel}` : ''}</p>
+            </div>
+            <Button className="mt-3 w-full gap-2 text-sm" onClick={downloadQR}>
+              <Download className="h-4 w-4" />
+              Download QR
+            </Button>
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 }

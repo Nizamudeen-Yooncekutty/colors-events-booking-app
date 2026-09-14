@@ -4,11 +4,13 @@ const Event = require('../models/Event');
 const Booking = require('../models/Booking');
 const { protect, adminOnly } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validate');
+const { parsePagination, paginationMeta } = require('../utils/paginate');
 
 const router = express.Router();
 
 const eventValidationRules = [
   body('title').isString().trim().isLength({ min: 2, max: 200 }).withMessage('Title must be 2-200 characters'),
+  body('description').optional().isString().trim().isLength({ max: 5000 }).withMessage('Description must be under 5000 characters'),
   body('eventDate').isISO8601().withMessage('Event date must be a valid ISO 8601 date'),
   body('venue').isString().trim().isLength({ min: 2, max: 200 }).withMessage('Venue must be 2-200 characters'),
   body('location').optional().isString().trim().isLength({ max: 300 }).withMessage('Location must be under 300 characters'),
@@ -16,6 +18,11 @@ const eventValidationRules = [
   body('registrationEnd').isISO8601().withMessage('Registration end must be a valid ISO 8601 date'),
   body('maxCapacity').optional().isInt({ min: 0 }).withMessage('Max capacity must be a non-negative integer'),
   body('status').optional().isIn(['draft', 'active', 'completed', 'cancelled']).withMessage('Status must be draft, active, completed, or cancelled'),
+  body('timeSlots').optional().isArray({ max: 50 }).withMessage('Time slots must be an array (max 50)'),
+  body('timeSlots.*.label').optional().isString().trim().isLength({ max: 100 }).withMessage('Slot label must be under 100 characters'),
+  body('timeSlots.*.maxCapacity').optional().isInt({ min: 0 }).withMessage('Slot capacity must be a non-negative integer'),
+  body('foodOptions').optional().isArray({ max: 50 }).withMessage('Food options must be an array (max 50)'),
+  body('foodOptions.*.name').optional().isString().trim().isLength({ max: 100 }).withMessage('Food option name must be under 100 characters'),
 ];
 
 // GET /api/events - list active events (employees) or all events (admin)
@@ -25,11 +32,25 @@ router.get('/', protect, async (req, res) => {
       ? {}
       : { status: 'active' };
 
+    if (req.query.search) {
+      const searchRegex = new RegExp(req.query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      filter.$or = [
+        { title: searchRegex },
+        { venue: searchRegex },
+        { location: searchRegex },
+        { description: searchRegex },
+      ];
+    }
+
+    const { page, limit, skip } = parsePagination(req.query);
+    const total = await Event.countDocuments(filter);
+
     const events = await Event.find(filter)
       .sort({ eventDate: 1 })
+      .skip(skip)
+      .limit(limit)
       .populate('createdBy', 'name employeeId');
 
-    // Attach booking counts
     const eventsWithCounts = await Promise.all(
       events.map(async (event) => {
         const bookingCount = await Booking.countDocuments({
@@ -47,7 +68,7 @@ router.get('/', protect, async (req, res) => {
       })
     );
 
-    res.json({ events: eventsWithCounts });
+    res.json({ events: eventsWithCounts, pagination: paginationMeta(total, page, limit) });
   } catch (error) {
     res.status(500).json({ message: 'An error occurred. Please try again.' });
   }

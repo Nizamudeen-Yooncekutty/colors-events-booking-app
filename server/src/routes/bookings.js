@@ -8,14 +8,14 @@ const { protect, adminOrVolunteer } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validate');
 const { generateQRData, generateQRImage, getSlotColor, isWalkInQR } = require('../utils/qrcode');
 const { sendBookingConfirmation } = require('../utils/email');
+const { parsePagination, paginationMeta } = require('../utils/paginate');
 
 const router = express.Router();
 
 // QR scan: 300 req / 1 min per IP — volunteers scan rapidly during check-in
-const isLoadTest = process.env.LOAD_TEST === 'true';
 const scanLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: isLoadTest ? 100000 : 300,
+  max: 300,
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: 'Too many scan attempts, please slow down' },
@@ -151,10 +151,16 @@ router.post('/', protect, [
 // GET /api/bookings/my - get current user's bookings
 router.get('/my', protect, async (req, res) => {
   try {
-    const bookings = await Booking.find({ employee: req.employee._id })
+    const filter = { employee: req.employee._id };
+    const { page, limit, skip } = parsePagination(req.query);
+    const total = await Booking.countDocuments(filter);
+
+    const bookings = await Booking.find(filter)
       .populate('event', 'title eventDate venue location status timeSlots')
-      .sort({ createdAt: -1 });
-    res.json({ bookings });
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+    res.json({ bookings, pagination: paginationMeta(total, page, limit) });
   } catch (error) {
     res.status(500).json({ message: 'An error occurred. Please try again.' });
   }
@@ -284,6 +290,7 @@ router.post('/scan', protect, adminOrVolunteer, scanLimiter, [
 // POST /api/bookings/lookup - lookup by employee ID for fallback check-in
 router.post('/lookup', protect, adminOrVolunteer, [
   body('employeeId').isString().trim().isLength({ min: 1, max: 20 }).isAlphanumeric().withMessage('Employee ID must be alphanumeric (max 20 chars)'),
+  body('eventId').optional().isMongoId().withMessage('Invalid event ID'),
 ], handleValidationErrors, async (req, res) => {
   try {
     const { employeeId, eventId } = req.body;
