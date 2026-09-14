@@ -19,3 +19,4 @@ architecture-diagram*.pdf
 
 # Test artifacts
 e2e-test-scenarios.csv
+e2e/reports/
