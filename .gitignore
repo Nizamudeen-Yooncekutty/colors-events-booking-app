@@ -10,6 +10,9 @@ dist
 # SSL certificates
 server/certs/
 
+# JWT RSA keys
+server/jwt-private.pem
+
 # Architecture diagrams
 architecture-diagram*.html
 architecture-diagram*.pdf

@@ -3,7 +3,17 @@ const jwt = require('jsonwebtoken');
 process.env.JWT_SECRET = 'test-secret-for-unit-tests';
 process.env.JWT_EXPIRES_IN = '1h';
 
-const { generateToken } = require('../middleware/auth');
+const fs = require('fs');
+const path = require('path');
+const { generateToken, verifyToken, algorithm } = require('../middleware/auth');
+
+// Load the same signing key that the middleware uses
+let signingKey;
+try {
+  signingKey = fs.readFileSync(path.join(__dirname, '../../jwt-private.pem'), 'utf8');
+} catch {
+  signingKey = process.env.JWT_SECRET;
+}
 
 describe('generateToken', () => {
   test('returns a valid JWT string', () => {
@@ -12,26 +22,35 @@ describe('generateToken', () => {
     expect(token.split('.')).toHaveLength(3);
   });
 
-  test('contains the user ID in payload', () => {
-    const token = generateToken('user123');
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    expect(decoded.id).toBe('user123');
+  test('contains the employee ID in payload', () => {
+    const token = generateToken('EMP123');
+    const decoded = verifyToken(token);
+    expect(decoded.employeeId).toBe('EMP123');
   });
 
-  test('uses HS256 algorithm', () => {
+  test('contains the role and tokenVersion in payload', () => {
+    const token = generateToken('EMP123', 'admin', 3);
+    const decoded = verifyToken(token);
+    expect(decoded.employeeId).toBe('EMP123');
+    expect(decoded.role).toBe('admin');
+    expect(decoded.tokenVersion).toBe(3);
+  });
+
+  test('uses expected signing algorithm', () => {
     const token = generateToken('user123');
     const header = JSON.parse(Buffer.from(token.split('.')[0], 'base64').toString());
-    expect(header.alg).toBe('HS256');
+    expect(['HS256', 'RS256']).toContain(header.alg);
+    expect(header.alg).toBe(algorithm);
   });
 
   test('has expiration', () => {
     const token = generateToken('user123');
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = verifyToken(token);
     expect(decoded.exp).toBeDefined();
     expect(decoded.exp).toBeGreaterThan(Date.now() / 1000);
   });
 
-  test('rejects with wrong secret', () => {
+  test('rejects with wrong key', () => {
     const token = generateToken('user123');
     expect(() => jwt.verify(token, 'wrong-secret')).toThrow();
   });
@@ -81,7 +100,7 @@ describe('protect middleware', () => {
   });
 
   test('rejects oversized token', async () => {
-    const req = { headers: { authorization: `Bearer ${'a'.repeat(3000)}` } };
+    const req = { headers: { authorization: `Bearer ${'a'.repeat(5000)}` } };
     const res = mockRes();
     const next = jest.fn();
 
@@ -92,7 +111,7 @@ describe('protect middleware', () => {
   });
 
   test('rejects expired token', async () => {
-    const expiredToken = jwt.sign({ id: 'user1' }, process.env.JWT_SECRET, { expiresIn: '0s' });
+    const expiredToken = jwt.sign({ employeeId: 'EMP001' }, signingKey, { expiresIn: '0s', algorithm });
     const req = { headers: { authorization: `Bearer ${expiredToken}` } };
     const res = mockRes();
     const next = jest.fn();

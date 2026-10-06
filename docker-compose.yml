@@ -26,7 +26,7 @@ services:
       NODE_ENV: production
       MONGODB_URI: mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASS}@mongodb:27017/colors_booking?authSource=admin
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
-      JWT_EXPIRES_IN: 7d
+      JWT_EXPIRES_IN: 1h
       AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
       AZURE_TENANT_ID: ${AZURE_TENANT_ID}
       ALLOWED_EMAIL_DOMAIN: ${ALLOWED_EMAIL_DOMAIN}
@@ -44,7 +44,7 @@ services:
       NODE_ENV: production
       MONGODB_URI: mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASS}@mongodb:27017/colors_booking?authSource=admin
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
-      JWT_EXPIRES_IN: 7d
+      JWT_EXPIRES_IN: 1h
       AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
       AZURE_TENANT_ID: ${AZURE_TENANT_ID}
       ALLOWED_EMAIL_DOMAIN: ${ALLOWED_EMAIL_DOMAIN}
@@ -62,7 +62,7 @@ services:
       NODE_ENV: production
       MONGODB_URI: mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASS}@mongodb:27017/colors_booking?authSource=admin
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
-      JWT_EXPIRES_IN: 7d
+      JWT_EXPIRES_IN: 1h
       AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
       AZURE_TENANT_ID: ${AZURE_TENANT_ID}
       ALLOWED_EMAIL_DOMAIN: ${ALLOWED_EMAIL_DOMAIN}

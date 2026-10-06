@@ -2,7 +2,7 @@ const express = require('express');
 const { body } = require('express-validator');
 const Employee = require('../models/Employee');
 const RoleUser = require('../models/RoleUser');
-const { protect, generateToken } = require('../middleware/auth');
+const { protect, generateToken, generateRefreshToken, setRefreshCookie, clearRefreshCookie, verifyToken } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validate');
 const { verifyAzureToken } = require('../utils/azureAuth');
 
@@ -83,9 +83,12 @@ router.post('/register', registerValidation, async (req, res) => {
     const safeEmployee = employee.toObject();
     delete safeEmployee.password;
 
+    const refreshToken = generateRefreshToken(employee.employeeId, employee.tokenVersion);
+    setRefreshCookie(res, refreshToken);
+
     res.status(201).json({
       employee: safeEmployee,
-      token: generateToken(employee._id),
+      token: generateToken(employee.employeeId, employee.role, employee.tokenVersion),
     });
   } catch (error) {
     if (error.code === 11000) {
@@ -112,12 +115,19 @@ router.post('/login', loginValidation, async (req, res) => {
       return res.status(401).json({ message: 'Account is deactivated' });
     }
 
+    // Revoke all previous tokens by incrementing tokenVersion
+    employee.tokenVersion = (employee.tokenVersion || 0) + 1;
+    await employee.save();
+
     const safeEmployee = employee.toObject();
     delete safeEmployee.password;
 
+    const refreshToken = generateRefreshToken(employee.employeeId, employee.tokenVersion);
+    setRefreshCookie(res, refreshToken);
+
     res.json({
       employee: safeEmployee,
-      token: generateToken(employee._id),
+      token: generateToken(employee.employeeId, employee.role, employee.tokenVersion),
     });
   } catch (error) {
     res.status(500).json({ message: 'Login failed. Please try again.' });
@@ -134,6 +144,9 @@ router.post('/sso', async (req, res) => {
 
     const idToken = authHeader.split(' ')[1];
     const decoded = await verifyAzureToken(idToken);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('Azure AD decoded token fields:', JSON.stringify(decoded, null, 2));
+    }
 
     if (!decoded.preferred_username && !decoded.email) {
       return res.status(401).json({ message: 'Invalid token: no email found' });
@@ -180,19 +193,24 @@ router.post('/sso', async (req, res) => {
       // Update role if changed in RoleUser collection
       if (employee.role !== role) {
         employee.role = role;
-        await employee.save();
       }
       if (!employee.isActive) {
         return res.status(401).json({ message: 'Account is deactivated' });
       }
+      // Revoke all previous tokens
+      employee.tokenVersion = (employee.tokenVersion || 0) + 1;
+      await employee.save();
     }
 
     const safeEmployee = employee.toObject();
     delete safeEmployee.password;
 
+    const refreshToken = generateRefreshToken(employee.employeeId, employee.tokenVersion);
+    setRefreshCookie(res, refreshToken);
+
     res.json({
       employee: safeEmployee,
-      token: generateToken(employee._id),
+      token: generateToken(employee.employeeId, employee.role, employee.tokenVersion),
     });
   } catch (error) {
     console.error('SSO auth error:', error.name, error.message);
@@ -209,6 +227,81 @@ router.post('/sso', async (req, res) => {
 // GET /api/auth/me
 router.get('/me', protect, async (req, res) => {
   res.json({ employee: req.employee });
+});
+
+// POST /api/auth/refresh - refresh access token using httpOnly cookie
+router.post('/refresh', async (req, res) => {
+  try {
+    const refreshToken = req.cookies?.refreshToken;
+    if (!refreshToken) {
+      return res.status(401).json({ message: 'No refresh token' });
+    }
+
+    const decoded = verifyToken(refreshToken);
+
+    if (decoded.type !== 'refresh') {
+      return res.status(401).json({ message: 'Invalid token type' });
+    }
+
+    const employee = await Employee.findOne({ employeeId: decoded.employeeId }).select('-password');
+    if (!employee || !employee.isActive) {
+      clearRefreshCookie(res);
+      return res.status(401).json({ message: 'Account not found or inactive' });
+    }
+
+    // Server-side token invalidation: reject refresh tokens from before the current version
+    if (decoded.tokenVersion !== undefined && decoded.tokenVersion !== employee.tokenVersion) {
+      clearRefreshCookie(res);
+      return res.status(401).json({ message: 'Session invalidated, please login again' });
+    }
+
+    // Sync role from RoleUser collection if an entry exists (SSO-managed roles)
+    const roleUser = await RoleUser.findOne({ email: employee.email, isActive: true });
+    if (roleUser && employee.role !== roleUser.role) {
+      employee.role = roleUser.role;
+    }
+
+    // Revoke previous tokens and issue new ones
+    employee.tokenVersion = (employee.tokenVersion || 0) + 1;
+    await employee.save();
+
+    const newAccessToken = generateToken(employee.employeeId, employee.role, employee.tokenVersion);
+    const newRefreshToken = generateRefreshToken(employee.employeeId, employee.tokenVersion);
+    setRefreshCookie(res, newRefreshToken);
+
+    const safeEmployee = employee.toObject();
+    delete safeEmployee.password;
+
+    res.json({
+      token: newAccessToken,
+      employee: safeEmployee,
+    });
+  } catch (error) {
+    clearRefreshCookie(res);
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ message: 'Refresh token expired, please login again' });
+    }
+    return res.status(401).json({ message: 'Invalid refresh token' });
+  }
+});
+
+// POST /api/auth/logout - clear refresh token and invalidate all tokens
+router.post('/logout', async (req, res) => {
+  // Best-effort token invalidation: increment tokenVersion if we can identify the user
+  try {
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith('Bearer ')) {
+      const decoded = verifyToken(authHeader.split(' ')[1]);
+      if (decoded?.employeeId) {
+        await Employee.updateOne(
+          { employeeId: decoded.employeeId },
+          { $inc: { tokenVersion: 1 } }
+        );
+      }
+    }
+  } catch { /* token may be expired — still clear the cookie */ }
+  clearRefreshCookie(res);
+  res.json({ message: 'Logged out successfully' });
 });
 
 module.exports = router;

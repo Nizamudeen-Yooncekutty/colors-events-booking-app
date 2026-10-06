@@ -1,22 +1,35 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import api from '@/lib/api';
 import { authenticateWithSSO } from '@/auth/authService';
+import useIdleTimeout from '@/hooks/useIdleTimeout';
 
 const AuthContext = createContext(null);
 
-function isTokenExpired(token) {
+function parseTokenPayload(token) {
   try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    if (!payload.exp) return false;
-    return payload.exp * 1000 < Date.now() - 5000;
+    return JSON.parse(atob(token.split('.')[1]));
   } catch {
-    return true;
+    return null;
   }
+}
+
+function isTokenExpired(token) {
+  const payload = parseTokenPayload(token);
+  if (!payload || !payload.exp) return !payload;
+  return payload.exp * 1000 < Date.now() - 5000;
 }
 
 export function AuthProvider({ children }) {
   const [employee, setEmployee] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  const applyTokenRole = (employeeData, token) => {
+    const payload = parseTokenPayload(token);
+    if (payload?.role) {
+      return { ...employeeData, role: payload.role };
+    }
+    return employeeData;
+  };
 
   useEffect(() => {
     const token = sessionStorage.getItem('token');
@@ -29,8 +42,9 @@ export function AuthProvider({ children }) {
       }
       api.get('/auth/me')
         .then(res => {
-          setEmployee(res.data.employee);
-          sessionStorage.setItem('employee', JSON.stringify(res.data.employee));
+          const emp = applyTokenRole(res.data.employee, token);
+          setEmployee(emp);
+          sessionStorage.setItem('employee', JSON.stringify(emp));
         })
         .catch(() => {
           sessionStorage.removeItem('token');
@@ -45,33 +59,45 @@ export function AuthProvider({ children }) {
 
   const login = async (employeeId, password) => {
     const res = await api.post('/auth/login', { employeeId, password });
+    const emp = applyTokenRole(res.data.employee, res.data.token);
     sessionStorage.setItem('token', res.data.token);
-    sessionStorage.setItem('employee', JSON.stringify(res.data.employee));
-    setEmployee(res.data.employee);
+    sessionStorage.setItem('employee', JSON.stringify(emp));
+    setEmployee(emp);
     return res.data;
   };
 
   const loginWithSSO = async (idToken) => {
     const data = await authenticateWithSSO(idToken);
+    const emp = applyTokenRole(data.employee, data.token);
     sessionStorage.setItem('token', data.token);
-    sessionStorage.setItem('employee', JSON.stringify(data.employee));
-    setEmployee(data.employee);
+    sessionStorage.setItem('employee', JSON.stringify(emp));
+    setEmployee(emp);
     return data;
   };
 
   const register = async (data) => {
     const res = await api.post('/auth/register', data);
+    const emp = applyTokenRole(res.data.employee, res.data.token);
     sessionStorage.setItem('token', res.data.token);
-    sessionStorage.setItem('employee', JSON.stringify(res.data.employee));
-    setEmployee(res.data.employee);
+    sessionStorage.setItem('employee', JSON.stringify(emp));
+    setEmployee(emp);
     return res.data;
   };
 
-  const logout = () => {
+  const logout = useCallback(() => {
+    api.post('/auth/logout').catch(() => {});
     sessionStorage.removeItem('token');
     sessionStorage.removeItem('employee');
     setEmployee(null);
-  };
+  }, []);
+
+  const handleIdle = useCallback(() => {
+    if (employee) {
+      logout();
+    }
+  }, [employee, logout]);
+
+  useIdleTimeout(handleIdle);
 
   return (
     <AuthContext.Provider value={{ employee, loading, login, loginWithSSO, register, logout }}>

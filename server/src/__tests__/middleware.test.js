@@ -55,14 +55,24 @@ describe('sanitizeInputs middleware', () => {
     expect(res.status).toHaveBeenCalledWith(400);
   });
 
-  test('sanitizes script tags from strings', () => {
+  test('rejects HTML tags in input', () => {
     const req = { body: { name: '<script>alert(1)</script>John' }, query: {} };
     const res = mockRes();
     const next = jest.fn();
 
     sanitizeInputs(req, res, next);
-    expect(next).toHaveBeenCalled();
-    expect(req.body.name).not.toContain('<script>');
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  test('rejects benign HTML tags in input', () => {
+    const req = { body: { name: '<b>bold</b>' }, query: {} };
+    const res = mockRes();
+    const next = jest.fn();
+
+    sanitizeInputs(req, res, next);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(next).not.toHaveBeenCalled();
   });
 
   test('trims query params', () => {

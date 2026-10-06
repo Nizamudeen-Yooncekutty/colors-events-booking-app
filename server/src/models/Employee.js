@@ -51,6 +51,10 @@ const employeeSchema = new mongoose.Schema({
     type: Boolean,
     default: true,
   },
+  tokenVersion: {
+    type: Number,
+    default: 0,
+  },
 }, { timestamps: true });
 
 employeeSchema.pre('save', async function (next) {

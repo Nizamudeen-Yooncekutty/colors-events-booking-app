@@ -47,15 +47,20 @@ connectDB();
 
 const clientUrls = process.env.CLIENT_URL?.split(',').map(u => u.trim()) || [];
 
+// Filter out private/internal IPs from CSP connect-src to avoid information disclosure
+const PRIVATE_IP_PATTERN = /^https?:\/\/(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.)/;
+const publicClientUrls = clientUrls.filter(u => !PRIVATE_IP_PATTERN.test(u));
+
 // Security headers
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'"],
+      // unsafe-inline required for style-src: Radix UI and Framer Motion inject inline styles at runtime
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "blob:"],
-      connectSrc: ["'self'", "https://login.microsoftonline.com", ...clientUrls],
+      connectSrc: ["'self'", "https://login.microsoftonline.com", ...publicClientUrls],
       fontSrc: ["'self'"],
       objectSrc: ["'none'"],
       frameAncestors: ["'none'"],
@@ -76,6 +81,14 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
   maxAge: 86400,
 }));
+
+// Reject ambiguous requests (HTTP request smuggling defense)
+app.use((req, res, next) => {
+  if (req.headers['transfer-encoding'] && req.headers['content-length']) {
+    return res.status(400).json({ message: 'Ambiguous request: both Transfer-Encoding and Content-Length present' });
+  }
+  next();
+});
 
 // Request ID tracking
 app.use(requestId);
@@ -117,6 +130,7 @@ const authLimiter = rl(15, 5 * 60 * 1000, 'Too many login attempts, please try a
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
 app.use('/api/auth/sso', rl(30, 5 * 60 * 1000, 'Too many SSO attempts, please try again'));
+app.use('/api/auth/refresh', rl(30, 5 * 60 * 1000, 'Too many refresh attempts, please try again'));
 
 // Booking creation: 100 req / 1 min per IP — allows rapid registration during peak
 app.use('/api/bookings', rl(100, 60 * 1000, 'Too many booking requests, please slow down'));

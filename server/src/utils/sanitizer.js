@@ -9,6 +9,7 @@ const NOSQL_OPERATORS = [
 const COMMAND_INJECTION_PATTERN = /&&|\|\||\$\(|`/;
 const PATH_TRAVERSAL_PATTERN = /\.\.\//;
 const NULL_BYTE_PATTERN = /\x00/;
+const HTML_TAG_PATTERN = /<[a-zA-Z\/][^>]*>/;
 
 function hasNoSQLInjection(obj) {
   if (typeof obj !== 'object' || obj === null) return false;
@@ -29,6 +30,10 @@ function hasPathTraversal(value) {
 
 function hasNullByte(value) {
   return typeof value === 'string' && NULL_BYTE_PATTERN.test(value);
+}
+
+function hasHTMLTags(value) {
+  return typeof value === 'string' && HTML_TAG_PATTERN.test(value);
 }
 
 function sanitizeString(value) {
@@ -53,6 +58,7 @@ function runSecurityChecks(data) {
     if (hasCommandInjection(data)) return 'Potentially unsafe input detected';
     if (hasPathTraversal(data)) return 'Potentially unsafe input detected';
     if (hasNullByte(data)) return 'Potentially unsafe input detected';
+    if (hasHTMLTags(data)) return 'HTML content is not allowed in input fields';
   }
 
   if (typeof data === 'object' && data !== null) {

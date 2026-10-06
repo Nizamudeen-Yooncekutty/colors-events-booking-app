@@ -3,6 +3,8 @@ const mongoose = require('mongoose');
 const { body, param } = require('express-validator');
 const WalkIn = require('../models/WalkIn');
 const Event = require('../models/Event');
+const Employee = require('../models/Employee');
+const Booking = require('../models/Booking');
 const { protect, adminOrVolunteer, adminOnly } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validate');
 const { getSlotColor, generateWalkInQRData, generateWalkInQRImage, isWalkInQR, parseWalkInQR, WALKIN_TYPE_COLORS } = require('../utils/qrcode');
@@ -33,9 +35,20 @@ router.post('/', protect, adminOrVolunteer, [
     return true;
   }),
   body('department').optional().trim().isLength({ max: 100 }).withMessage('Department must be at most 100 characters'),
-  body('employeeId').optional().trim().isAlphanumeric().isLength({ max: 20 }).withMessage('Employee ID must be alphanumeric (max 20 chars)'),
+  body('employeeId').optional().trim().custom((value) => {
+    if (value && value.length > 0) {
+      if (!/^[a-zA-Z0-9]+$/.test(value)) throw new Error('Employee ID must be alphanumeric');
+      if (value.length > 20) throw new Error('Employee ID must be at most 20 characters');
+    }
+    return true;
+  }),
   body('foodPreference').optional().trim().isLength({ max: 100 }).withMessage('Food preference must be under 100 characters'),
-  body('timeSlotId').optional().isMongoId().withMessage('Invalid time slot ID'),
+  body('timeSlotId').optional().custom((value) => {
+    if (value && value.length > 0) {
+      if (!/^[a-f0-9]{24}$/.test(value)) throw new Error('Invalid time slot ID');
+    }
+    return true;
+  }),
   body('notes').optional().trim().isLength({ max: 500 }).withMessage('Notes must be at most 500 characters'),
 ], handleValidationErrors, async (req, res) => {
   try {
@@ -44,6 +57,40 @@ router.post('/', protect, adminOrVolunteer, [
     const event = await Event.findById(eventId);
     if (!event) {
       return res.status(404).json({ message: 'Event not found' });
+    }
+
+    if (event.status !== 'active') {
+      return res.status(400).json({ message: 'Walk-in registration is not allowed for closed or inactive events' });
+    }
+
+    // Validate unregistered_employee walk-in: require employee ID and prevent duplicates
+    if (attendeeType === 'unregistered_employee') {
+      if (!employeeId || employeeId.trim().length === 0) {
+        return res.status(400).json({ message: 'Employee ID is required for unregistered employee walk-in' });
+      }
+
+      // Prevent duplicate walk-in for the same employee at the same event
+      const duplicateWalkIn = await WalkIn.findOne({
+        event: eventId,
+        employeeId: employeeId.toUpperCase(),
+        attendeeType: 'unregistered_employee',
+      });
+      if (duplicateWalkIn) {
+        return res.status(409).json({ message: 'This employee has already been registered as a walk-in for this event' });
+      }
+
+      // Check if employee already has a booking (QR check-in) for this event
+      const registeredEmployee = await Employee.findOne({ employeeId: employeeId.toUpperCase() });
+      if (registeredEmployee) {
+        const existingBooking = await Booking.findOne({
+          employee: registeredEmployee._id,
+          event: eventId,
+          status: { $ne: 'cancelled' },
+        });
+        if (existingBooking) {
+          return res.status(409).json({ message: 'This employee already has a booking for this event. Walk-in registration is not allowed.' });
+        }
+      }
     }
 
     let selectedSlot = null;
@@ -64,7 +111,7 @@ router.post('/', protect, adminOrVolunteer, [
       email: email || '',
       attendeeType,
       department: department || '',
-      employeeId: employeeId || '',
+      employeeId: employeeId ? employeeId.toUpperCase() : '',
       foodPreference: foodPreference || '',
       timeSlot: selectedSlot ? selectedSlot._id : null,
       timeSlotLabel: selectedSlot ? selectedSlot.label : '',
@@ -90,6 +137,13 @@ router.post('/', protect, adminOrVolunteer, [
 // POST /api/walkins/scan - handle walk-in QR scan (auto check-in)
 router.post('/scan', protect, adminOrVolunteer, [
   body('qrData').isString().trim().isLength({ min: 1, max: 500 }).withMessage('QR data is required (max 500 chars)'),
+  body('employeeId').optional().trim().custom((value) => {
+    if (value && value.length > 0) {
+      if (!/^[a-zA-Z0-9]+$/.test(value)) throw new Error('Employee ID must be alphanumeric');
+      if (value.length > 20) throw new Error('Employee ID must be at most 20 characters');
+    }
+    return true;
+  }),
 ], handleValidationErrors, async (req, res) => {
   try {
     const { qrData, name, phone, department, foodPreference, notes } = req.body;
@@ -108,12 +162,47 @@ router.post('/scan', protect, adminOrVolunteer, [
       return res.status(404).json({ message: 'Event not found' });
     }
 
+    if (event.status !== 'active') {
+      return res.status(400).json({ message: 'Walk-in registration is not allowed for closed or inactive events' });
+    }
+
+    // For unregistered_employee QR scans, accept employeeId from the request body
+    const { employeeId } = req.body;
+    if (parsed.attendeeType === 'unregistered_employee') {
+      if (!employeeId || employeeId.trim().length === 0) {
+        return res.status(400).json({ message: 'Employee ID is required for unregistered employee walk-in' });
+      }
+
+      const duplicateWalkIn = await WalkIn.findOne({
+        event: parsed.eventId,
+        employeeId: employeeId.trim().toUpperCase(),
+        attendeeType: 'unregistered_employee',
+      });
+      if (duplicateWalkIn) {
+        return res.status(409).json({ message: 'This employee has already been registered as a walk-in for this event' });
+      }
+
+      // Check if employee already has a booking (QR check-in) for this event
+      const registeredEmployee = await Employee.findOne({ employeeId: employeeId.trim().toUpperCase() });
+      if (registeredEmployee) {
+        const existingBooking = await Booking.findOne({
+          employee: registeredEmployee._id,
+          event: parsed.eventId,
+          status: { $ne: 'cancelled' },
+        });
+        if (existingBooking) {
+          return res.status(409).json({ message: 'This employee already has a booking for this event. Walk-in registration is not allowed.' });
+        }
+      }
+    }
+
     const walkIn = await WalkIn.create({
       event: parsed.eventId,
       name: (name || TYPE_LABELS[parsed.attendeeType] || 'Walk-in').trim(),
       phone: phone || '',
       attendeeType: parsed.attendeeType,
       department: department || '',
+      employeeId: employeeId ? employeeId.trim().toUpperCase() : '',
       foodPreference: foodPreference || '',
       notes: notes || '',
       checkedInBy: req.employee._id,

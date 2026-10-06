@@ -4,9 +4,32 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api',
   headers: { 'Content-Type': 'application/json' },
   timeout: 30000,
+  withCredentials: true,
 });
 
+let isRefreshing = false;
+let refreshSubscribers = [];
 let isHandlingSessionExpiry = false;
+
+function onTokenRefreshed(newToken) {
+  refreshSubscribers.forEach(cb => cb(newToken));
+  refreshSubscribers = [];
+}
+
+function addRefreshSubscriber(cb) {
+  refreshSubscribers.push(cb);
+}
+
+function forceLogout() {
+  if (isHandlingSessionExpiry) return;
+  isHandlingSessionExpiry = true;
+  sessionStorage.removeItem('token');
+  sessionStorage.removeItem('employee');
+  setTimeout(() => {
+    isHandlingSessionExpiry = false;
+    window.location.href = '/login';
+  }, 100);
+}
 
 api.interceptors.request.use((config) => {
   const token = sessionStorage.getItem('token');
@@ -18,17 +41,15 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (response) => {
-    // Validate that JSON responses have correct content-type
     const contentType = response.headers?.['content-type'] || '';
     if (response.data && typeof response.data === 'object' && !contentType.includes('application/json')) {
-      // Allow empty content-type for small responses but warn on mismatch
       if (contentType && !contentType.includes('json')) {
         console.warn('Expected JSON content-type but received:', contentType);
       }
     }
     return response;
   },
-  (error) => {
+  async (error) => {
     if (error.code === 'ECONNABORTED') {
       error.userMessage = 'Request timed out. Please try again.';
       return Promise.reject(error);
@@ -39,14 +60,51 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    if (error.response.status === 401 && !isHandlingSessionExpiry) {
-      isHandlingSessionExpiry = true;
-      sessionStorage.removeItem('token');
-      sessionStorage.removeItem('employee');
-      setTimeout(() => {
-        isHandlingSessionExpiry = false;
-        window.location.href = '/login';
-      }, 100);
+    const originalRequest = error.config;
+
+    // Auto-refresh on 401 (except for refresh/login requests themselves)
+    if (
+      error.response.status === 401 &&
+      !originalRequest._retry &&
+      !originalRequest.url?.includes('/auth/refresh') &&
+      !originalRequest.url?.includes('/auth/login')
+    ) {
+      originalRequest._retry = true;
+
+      if (isRefreshing) {
+        return new Promise((resolve) => {
+          addRefreshSubscriber((newToken) => {
+            originalRequest.headers.Authorization = `Bearer ${newToken}`;
+            resolve(api(originalRequest));
+          });
+        });
+      }
+
+      isRefreshing = true;
+
+      try {
+        const res = await axios.post(
+          `${api.defaults.baseURL}/auth/refresh`,
+          {},
+          { withCredentials: true }
+        );
+        const { token, employee } = res.data;
+        sessionStorage.setItem('token', token);
+        sessionStorage.setItem('employee', JSON.stringify(employee));
+        isRefreshing = false;
+        onTokenRefreshed(token);
+        originalRequest.headers.Authorization = `Bearer ${token}`;
+        return api(originalRequest);
+      } catch {
+        isRefreshing = false;
+        refreshSubscribers = [];
+        forceLogout();
+        return Promise.reject(error);
+      }
+    }
+
+    if (error.response.status === 401) {
+      forceLogout();
     }
 
     if (error.response.status === 403) {
