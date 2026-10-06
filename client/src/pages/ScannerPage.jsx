@@ -192,12 +192,12 @@ export default function ScannerPage() {
     }
   };
 
-  const handleRegisterAsWalkIn = () => {
+  const handleRegisterAsWalkIn = (type = 'unregistered_employee') => {
     setActiveTab('walkin');
     setWalkInForm(f => ({
       ...f,
-      attendeeType: 'unregistered_employee',
-      employeeId: lookupResults?.searchedId || employeeId.trim(),
+      attendeeType: type,
+      employeeId: type === 'unregistered_employee' ? (lookupResults?.searchedId || employeeId.trim()) : '',
       name: '',
     }));
     setLookupResults(null);
@@ -235,7 +235,12 @@ export default function ScannerPage() {
     setError('');
     setResult(null);
     try {
-      const res = await api.post('/walkins', walkInForm);
+      const payload = {};
+      Object.entries(walkInForm).forEach(([key, val]) => {
+        if (typeof val === 'string' && val.trim() === '') return;
+        payload[key] = val;
+      });
+      const res = await api.post('/walkins', payload);
       playSuccessBeep();
       setResult({
         success: true,
@@ -737,14 +742,20 @@ export default function ScannerPage() {
                         Employee ID "{lookupResults.searchedId}" not found in the system or has no active bookings.
                       </p>
                     </div>
-                    <Button
-                      size="sm"
-                      className="gap-1.5 text-xs"
-                      onClick={handleRegisterAsWalkIn}
-                    >
-                      <UserPlus className="h-3 w-3" />
-                      Register as Walk-in
-                    </Button>
+                    <div className="flex flex-wrap gap-1.5">
+                      {ATTENDEE_TYPES.map(type => (
+                        <Button
+                          key={type.value}
+                          size="sm"
+                          variant={type.value === 'unregistered_employee' ? 'default' : 'outline'}
+                          className="gap-1.5 text-xs"
+                          onClick={() => handleRegisterAsWalkIn(type.value)}
+                        >
+                          <UserPlus className="h-3 w-3" />
+                          {type.label}
+                        </Button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </CardContent>

@@ -44,11 +44,12 @@ const statusBadge = (status) => {
 };
 
 export default function EventsPage() {
-  const [activeFilter, setActiveFilter] = useState('open');
+  const [activeFilter, setActiveFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [sheetOpen, setSheetOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [serverCounts, setServerCounts] = useState(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 300);
@@ -57,36 +58,31 @@ export default function EventsPage() {
 
   const fetchEvents = useCallback(async (page) => {
     const res = await api.get('/events', {
-      params: { page, limit: 20, search: debouncedSearch || undefined },
+      params: {
+        page,
+        limit: 20,
+        search: debouncedSearch || undefined,
+        filterStatus: activeFilter || undefined,
+      },
     });
+    if (res.data.filterCounts) setServerCounts(res.data.filterCounts);
     return { items: res.data.events, pagination: res.data.pagination };
-  }, [debouncedSearch]);
+  }, [debouncedSearch, activeFilter]);
 
   const { items: events, loading, loadingMore, sentinelRef } = useInfiniteScroll(
-    fetchEvents, { deps: [debouncedSearch] }
+    fetchEvents, { deps: [debouncedSearch, activeFilter] }
   );
 
-  const categorized = useMemo(() => {
-    const counts = { all: events.length, open: 0, upcoming: 0, closed: 0, full: 0 };
-    const tagged = events.map(event => {
-      const status = getEventStatus(event);
-      counts[status]++;
-      return { ...event, _status: status };
-    });
-    return { tagged, counts };
+  const tagged = useMemo(() => {
+    return events.map(event => ({ ...event, _status: getEventStatus(event) }));
   }, [events]);
-
-  const filtered = useMemo(() => {
-    if (activeFilter === 'all') return categorized.tagged;
-    return categorized.tagged.filter(e => e._status === activeFilter);
-  }, [categorized.tagged, activeFilter]);
 
   const openSheet = (index) => {
     setSelectedIndex(index);
     setSheetOpen(true);
   };
 
-  const selectedEvent = filtered[selectedIndex];
+  const selectedEvent = tagged[selectedIndex];
 
   if (loading) {
     return (
@@ -122,7 +118,7 @@ export default function EventsPage() {
           {/* Filter pills */}
           <div className="flex items-center gap-1 overflow-x-auto no-scrollbar shrink min-w-0">
             {STATUS_FILTERS.map((f) => {
-              const count = categorized.counts[f.key];
+              const count = serverCounts ? serverCounts[f.key] : 0;
               const isActive = activeFilter === f.key;
               return (
                 <button
@@ -169,7 +165,7 @@ export default function EventsPage() {
 
       {/* ── Event cards ── */}
       <div className="mt-3">
-        {filtered.length === 0 ? (
+        {tagged.length === 0 ? (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -192,7 +188,7 @@ export default function EventsPage() {
           </motion.div>
         ) : (
           <div className="space-y-3">
-            {filtered.map((event, index) => {
+            {tagged.map((event, index) => {
               const { variant, label } = statusBadge(event._status);
               return (
                 <motion.div
@@ -267,9 +263,9 @@ export default function EventsPage() {
         onOpenChange={setSheetOpen}
         eventId={selectedEvent?._id}
         hasPrev={selectedIndex > 0}
-        hasNext={selectedIndex < filtered.length - 1}
+        hasNext={selectedIndex < tagged.length - 1}
         onPrev={() => setSelectedIndex(i => Math.max(0, i - 1))}
-        onNext={() => setSelectedIndex(i => Math.min(filtered.length - 1, i + 1))}
+        onNext={() => setSelectedIndex(i => Math.min(tagged.length - 1, i + 1))}
       />
     </div>
   );

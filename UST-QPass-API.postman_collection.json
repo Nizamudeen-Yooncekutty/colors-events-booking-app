@@ -156,11 +156,12 @@
               "host": ["{{baseUrl}}"],
               "path": ["events"],
               "query": [
+                { "key": "search", "value": "", "description": "Search by title, venue, location, or description", "disabled": true },
                 { "key": "page", "value": "1", "description": "Page number (default: 1)", "disabled": true },
                 { "key": "limit", "value": "20", "description": "Items per page (default: 20, max 100)", "disabled": true }
               ]
             },
-            "description": "List all events.\n\n- **Employees** see only `active` events.\n- **Admins** see all events (draft, active, closed, completed).\n\nEach event includes `bookingCount` and `checkedInCount`."
+            "description": "List all events.\n\n- **Employees** see only `active` events.\n- **Admins** see all events (draft, active, closed, completed).\n\nSupports `search` query to filter by title, venue, location, or description. Each event includes `bookingCount` and `checkedInCount`."
           },
           "response": [
             {
@@ -631,11 +632,12 @@
               "host": ["{{baseUrl}}"],
               "path": ["admin", "dashboard"],
               "query": [
+                { "key": "search", "value": "", "description": "Search events by title, venue, or location", "disabled": true },
                 { "key": "page", "value": "1", "description": "Page number for events list (default: 1)", "disabled": true },
                 { "key": "limit", "value": "20", "description": "Items per page (default: 20, max 100)", "disabled": true }
               ]
             },
-            "description": "Get admin dashboard statistics. **Admin only.**\n\nReturns aggregate counts and all events with booking, check-in, and walk-in stats."
+            "description": "Get admin dashboard statistics. **Admin only.**\n\nReturns aggregate counts and all events with booking, check-in, and walk-in stats. Supports `search` query to filter the events list by title, venue, or location."
           },
           "response": [
             {

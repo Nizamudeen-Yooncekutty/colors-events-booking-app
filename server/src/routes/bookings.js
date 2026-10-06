@@ -25,7 +25,12 @@ const scanLimiter = rateLimit({
 router.post('/', protect, [
   body('eventId').isMongoId().withMessage('Invalid event ID'),
   body('foodPreference').isString().trim().isLength({ min: 1, max: 100 }).withMessage('Food preference is required (max 100 chars)'),
-  body('timeSlotId').optional().isMongoId().withMessage('Invalid time slot ID'),
+  body('timeSlotId').optional().custom((value) => {
+    if (value && value.length > 0) {
+      if (!/^[a-f0-9]{24}$/.test(value)) throw new Error('Invalid time slot ID');
+    }
+    return true;
+  }),
 ], handleValidationErrors, async (req, res) => {
   try {
     const { eventId, foodPreference, timeSlotId } = req.body;
@@ -290,7 +295,12 @@ router.post('/scan', protect, adminOrVolunteer, scanLimiter, [
 // POST /api/bookings/lookup - lookup by employee ID for fallback check-in
 router.post('/lookup', protect, adminOrVolunteer, [
   body('employeeId').isString().trim().isLength({ min: 1, max: 20 }).isAlphanumeric().withMessage('Employee ID must be alphanumeric (max 20 chars)'),
-  body('eventId').optional().isMongoId().withMessage('Invalid event ID'),
+  body('eventId').optional().custom((value) => {
+    if (value && value.length > 0) {
+      if (!/^[a-f0-9]{24}$/.test(value)) throw new Error('Invalid event ID');
+    }
+    return true;
+  }),
 ], handleValidationErrors, async (req, res) => {
   try {
     const { employeeId, eventId } = req.body;

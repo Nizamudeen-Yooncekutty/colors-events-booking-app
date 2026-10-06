@@ -202,6 +202,7 @@ List all events. **Requires auth.**
 
 | Param | Type | Default | Description |
 |-------|------|---------|-------------|
+| `search` | string | — | Search by title, venue, location, or description |
 | `page` | integer | `1` | Page number |
 | `limit` | integer | `20` | Items per page (max 100) |
 
@@ -560,6 +561,7 @@ Returns: `totalEmployees`, `totalEvents`, `activeEvents`, `totalBookings`, `tota
 
 | Param | Type | Default | Description |
 |-------|------|---------|-------------|
+| `search` | string | — | Search events by title, venue, or location |
 | `page` | integer | `1` | Page number (applies to events list) |
 | `limit` | integer | `20` | Items per page (max 100) |
 
