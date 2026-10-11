@@ -14,7 +14,7 @@ module.exports = defineConfig({
     ['json', { outputFile: './e2e/reports/results.json' }],
   ],
   use: {
-    baseURL: 'http://localhost:5000',
+    baseURL: process.env.BASE_URL || 'http://localhost:5000',
     headless: true,
     screenshot: 'on',
     trace: 'on-first-retry',

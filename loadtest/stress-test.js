@@ -9,8 +9,9 @@
  */
 
 const http = require('http');
+const https = require('https');
 
-const BASE = 'http://localhost:5000';
+const BASE = process.env.LOAD_TEST_URL || 'http://localhost:5000';
 const SCENARIO = process.argv[2] || 'scan';
 
 let adminToken = null;
@@ -35,7 +36,9 @@ function request(method, path, body, token) {
     };
 
     const start = Date.now();
-    const req = http.request(opts, (res) => {
+    const client = url.protocol === 'https:' ? https : http;
+    if (url.protocol === 'https:') opts.rejectUnauthorized = false;
+    const req = client.request(opts, (res) => {
       let body = '';
       res.on('data', (c) => (body += c));
       res.on('end', () => {
@@ -143,7 +146,7 @@ async function run() {
         employeeId: `ST${r}${c}`.substring(0, 20),
         name: `${names[c % 10]} ${surnames[c % 10]}`,
         email: `st${r}${c}@test.com`,
-        password: 'Test123456', department: 'Stress',
+        password: 'Test@123456', department: 'Stress',
       });
     },
     scan: () => request('POST', '/api/walkins/scan', { qrData: `WALKIN:guest:${eventId}` }, adminToken),

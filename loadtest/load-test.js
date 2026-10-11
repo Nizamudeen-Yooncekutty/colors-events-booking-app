@@ -19,6 +19,7 @@
  */
 
 const http = require('http');
+const https = require('https');
 
 const BASE = process.env.LOAD_TEST_URL || 'http://localhost';
 const SCENARIO = process.argv[2] || 'register';
@@ -36,6 +37,7 @@ const errors = {};
 let adminToken = null;
 let eventId = null;
 let foodPref = null;
+let timeSlotId = null;
 
 function request(method, path, body, token) {
   return new Promise((resolve, reject) => {
@@ -54,7 +56,9 @@ function request(method, path, body, token) {
     };
 
     const start = Date.now();
-    const req = http.request(opts, (res) => {
+    const client = url.protocol === 'https:' ? https : http;
+    if (url.protocol === 'https:') opts.rejectUnauthorized = false;
+    const req = client.request(opts, (res) => {
       let body = '';
       res.on('data', (chunk) => (body += chunk));
       res.on('end', () => {
@@ -108,7 +112,7 @@ async function registerAndBook(i) {
     employeeId: id,
     name,
     email,
-    password: 'Test123456',
+    password: 'Test@123456',
     department: 'LoadTest',
   });
 
@@ -120,10 +124,9 @@ async function registerAndBook(i) {
   const token = regRes.data.token;
 
   // Book event
-  const bookRes = await request('POST', '/api/bookings', {
-    eventId,
-    foodPreference: foodPref,
-  }, token);
+  const bookBody = { eventId, foodPreference: foodPref };
+  if (timeSlotId) bookBody.timeSlotId = timeSlotId;
+  const bookRes = await request('POST', '/api/bookings', bookBody, token);
 
   recordResult(bookRes);
 }
@@ -153,7 +156,7 @@ async function setup() {
   });
 
   if (loginRes.status !== 200) {
-    console.error('Admin login failed. Make sure ADMIN001 exists. Run: npm run seed');
+    console.error(`Admin login failed (${loginRes.status}):`, JSON.stringify(loginRes.data));
     process.exit(1);
   }
   adminToken = loginRes.data.token;
@@ -175,7 +178,9 @@ async function setup() {
   }
   eventId = events[0]._id;
   foodPref = events[0].foodOptions?.[0]?.name || 'Vegetarian';
+  timeSlotId = events[0].timeSlots?.[0]?._id || null;
   console.log(`Event: ${events[0].title} (${eventId})`);
+  if (timeSlotId) console.log(`Time slot: ${events[0].timeSlots[0].label || timeSlotId}`);
 }
 
 async function runBatch(fn, batchStart, batchSize) {
