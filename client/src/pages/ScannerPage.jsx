@@ -46,10 +46,12 @@ export default function ScannerPage() {
   const [pendingWalkIn, setPendingWalkIn] = useState(null);
   const [addDetailsForm, setAddDetailsForm] = useState({ name: '', phone: '', department: '' });
   const [walkInErrors, setWalkInErrors] = useState({});
+  const [scannerLocations, setScannerLocations] = useState([]);
   const scannerRef = useRef(null);
   const html5QrRef = useRef(null);
 
   useEffect(() => {
+    api.get('/events/locations').then(res => setScannerLocations(res.data.locations || [])).catch(() => {});
     api.get('/events').then(res => {
       const active = (res.data.events || []).filter(e => e.status === 'active');
       setEvents(active);
@@ -568,16 +570,17 @@ export default function ScannerPage() {
                   </div>
                   <div>
                     <Label className="text-xs">Location <span className="text-error">*</span></Label>
-                    <Input
+                    <select
                       value={walkInForm.location}
                       onChange={(e) => {
                         setWalkInForm(f => ({ ...f, location: e.target.value }));
                         setWalkInErrors(prev => ({ ...prev, location: '' }));
                       }}
-                      placeholder="e.g. Trivandrum"
-                      className={`mt-1 text-sm ${walkInErrors.location ? 'border-error' : 'border-ust-gray-400'}`}
-                      maxLength={100}
-                    />
+                      className={`mt-1 w-full h-9 rounded-md border bg-white px-3 text-sm ${walkInErrors.location ? 'border-error' : 'border-ust-gray-400'}`}
+                    >
+                      <option value="">Select city...</option>
+                      {(scannerLocations || []).map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
                     {walkInErrors.location && <p className="text-error text-[10px] font-medium mt-0.5">{walkInErrors.location}</p>}
                   </div>
                 </>

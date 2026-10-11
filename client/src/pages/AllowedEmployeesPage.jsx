@@ -27,6 +27,11 @@ export default function AllowedEmployeesPage() {
   const [showBulkAdd, setShowBulkAdd] = useState(false);
   const [bulkUids, setBulkUids] = useState('');
   const [bulkLocation, setBulkLocation] = useState('');
+  const [cityList, setCityList] = useState([]);
+
+  useEffect(() => {
+    api.get('/events/locations').then(res => setCityList(res.data.locations || [])).catch(() => {});
+  }, []);
 
   const fetchEmployees = useCallback(async () => {
     setLoading(true);
@@ -215,7 +220,10 @@ export default function AllowedEmployeesPage() {
             </div>
             <div className="flex-1 min-w-[120px]">
               <Label className="text-xs">Location</Label>
-              <Input placeholder="e.g. Trivandrum" value={newLocation} onChange={e => setNewLocation(e.target.value)} />
+              <select value={newLocation} onChange={e => setNewLocation(e.target.value)} className="w-full h-9 rounded-md border border-input bg-white px-3 text-sm">
+                <option value="">Select city...</option>
+                {cityList.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
             </div>
             <Button type="submit" size="sm">Add</Button>
             <Button type="button" variant="ghost" size="sm" onClick={() => setShowAddForm(false)}><X className="h-4 w-4" /></Button>
@@ -231,7 +239,10 @@ export default function AllowedEmployeesPage() {
           <form onSubmit={handleBulkAdd} className="space-y-3">
             <div>
               <Label className="text-xs">Location (common for all UIDs)</Label>
-              <Input placeholder="e.g. TVM" value={bulkLocation} onChange={e => setBulkLocation(e.target.value)} />
+              <select value={bulkLocation} onChange={e => setBulkLocation(e.target.value)} className="w-full h-9 rounded-md border border-input bg-white px-3 text-sm">
+                <option value="">Select city...</option>
+                {cityList.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
             </div>
             <div>
               <Label className="text-xs">Employee UIDs (one per line, or comma/semicolon separated)</Label>

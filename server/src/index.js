@@ -44,7 +44,22 @@ if (process.env.LOAD_TEST === 'true' && process.env.NODE_ENV === 'production') {
 }
 
 app.set('trust proxy', 1);
-connectDB();
+connectDB().then(async () => {
+  try {
+    const Location = require('./models/Location');
+    const count = await Location.countDocuments();
+    if (count === 0) {
+      const fs = require('fs');
+      const path = require('path');
+      const locFile = path.join(__dirname, '..', 'talenthubmdb.locations.json');
+      if (fs.existsSync(locFile)) {
+        const cities = JSON.parse(fs.readFileSync(locFile, 'utf8'));
+        await Location.insertMany(cities.map(c => ({ city: c.city })));
+        console.log(`Seeded ${cities.length} locations`);
+      }
+    }
+  } catch { /* non-blocking */ }
+});
 
 const clientUrls = process.env.CLIENT_URL?.split(',').map(u => u.trim()) || [];
 

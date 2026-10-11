@@ -2,11 +2,22 @@ const express = require('express');
 const { body, param } = require('express-validator');
 const Event = require('../models/Event');
 const Booking = require('../models/Booking');
+const Location = require('../models/Location');
 const { protect, adminOnly, allowedOnly } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validate');
 const { parsePagination, paginationMeta } = require('../utils/paginate');
 
 const router = express.Router();
+
+// GET /api/events/locations — list available cities
+router.get('/locations', protect, async (req, res) => {
+  try {
+    const locations = await Location.find({ isActive: true }).sort({ city: 1 });
+    res.json({ locations: locations.map(l => l.city) });
+  } catch {
+    res.json({ locations: [] });
+  }
+});
 
 const eventValidationRules = [
   body('title').isString().trim().isLength({ min: 2, max: 200 }).withMessage('Title must be 2-200 characters'),

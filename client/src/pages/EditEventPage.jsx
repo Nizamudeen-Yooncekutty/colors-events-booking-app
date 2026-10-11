@@ -31,6 +31,7 @@ export default function EditEventPage() {
   });
   const [foodOptions, setFoodOptions] = useState([]);
   const [timeSlots, setTimeSlots] = useState([]);
+  const [locationsList, setLocationsList] = useState([]);
 
   const addTimeSlot = () => {
     setTimeSlots([...timeSlots, { label: '', startTime: '', endTime: '', maxCapacity: '' }]);
@@ -45,6 +46,10 @@ export default function EditEventPage() {
     updated[index][field] = value;
     setTimeSlots(updated);
   };
+
+  useEffect(() => {
+    api.get('/events/locations').then(res => setLocationsList(res.data.locations || [])).catch(() => {});
+  }, []);
 
   useEffect(() => {
     api.get(`/events/${eventId}`)
@@ -219,8 +224,19 @@ export default function EditEventPage() {
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="location">Location</Label>
-                <Input id="location" name="location" placeholder="e.g. UST Global Campus, Thiruvananthapuram" value={form.location} onChange={handleChange} className="border-ust-gray-400" />
+                <Label htmlFor="location">Location / City</Label>
+                <select
+                  id="location"
+                  name="location"
+                  value={form.location}
+                  onChange={handleChange}
+                  className="w-full h-9 rounded-md border border-ust-gray-400 bg-white px-3 text-sm"
+                >
+                  <option value="">Select city...</option>
+                  {locationsList.map(city => (
+                    <option key={city} value={city}>{city}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 sm:gap-4">
