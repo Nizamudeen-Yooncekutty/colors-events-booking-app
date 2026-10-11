@@ -212,11 +212,11 @@ export default function AllowedEmployeesPage() {
           <form onSubmit={handleAddSingle} className="flex flex-wrap items-end gap-3">
             <div className="flex-1 min-w-[120px]">
               <Label className="text-xs">Employee UID</Label>
-              <Input placeholder="e.g. 196285" value={newUid} onChange={e => setNewUid(e.target.value)} />
+              <Input placeholder="Enter Employee ID" value={newUid} onChange={e => setNewUid(e.target.value)} />
             </div>
             <div className="flex-1 min-w-[150px]">
               <Label className="text-xs">Name</Label>
-              <Input placeholder="e.g. Rajesh Kumar" value={newName} onChange={e => setNewName(e.target.value)} />
+              <Input placeholder="Enter Name" value={newName} onChange={e => setNewName(e.target.value)} />
             </div>
             <div className="flex-1 min-w-[120px]">
               <Label className="text-xs">Location</Label>
@@ -248,7 +248,7 @@ export default function AllowedEmployeesPage() {
               <Label className="text-xs">Employee UIDs (one per line, or comma/semicolon separated)</Label>
               <textarea
                 className="w-full rounded-md border bg-background px-3 py-2 text-sm min-h-[120px] focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder={"196285\n196286\n196287\nor: 196285, 196286, 196287"}
+                placeholder={"EMP001\nEMP002\nEMP003\nor: EMP001, EMP002, EMP003"}
                 value={bulkUids}
                 onChange={e => setBulkUids(e.target.value)}
               />
@@ -277,7 +277,7 @@ export default function AllowedEmployeesPage() {
             <p className="text-sm font-medium">Upload CSV File</p>
             <p className="text-xs text-muted-foreground">CSV format: <code className="rounded bg-muted px-1">uid,location</code> (one per line)</p>
             <p className="text-xs text-muted-foreground mt-1">Example:</p>
-            <pre className="mt-1 rounded bg-muted p-2 text-xs">uid,name,location{'\n'}196285,Rajesh Kumar,Trivandrum{'\n'}196286,Priya Nair,Trivandrum{'\n'}196287,Arun Das,Kochi</pre>
+            <pre className="mt-1 rounded bg-muted p-2 text-xs">uid,name,location{'\n'}EMP001,John Doe,Chennai{'\n'}EMP002,Jane Smith,Mumbai{'\n'}EMP003,Alex Roy,Pune</pre>
           </div>
           <div className="flex items-center gap-3">
             <label className="cursor-pointer">
