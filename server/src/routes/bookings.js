@@ -4,7 +4,8 @@ const { body, param } = require('express-validator');
 const Booking = require('../models/Booking');
 const Event = require('../models/Event');
 const Employee = require('../models/Employee');
-const { protect, adminOrVolunteer } = require('../middleware/auth');
+const AllowedEmployee = require('../models/AllowedEmployee');
+const { protect, adminOrVolunteer, allowedOnly } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validate');
 const { generateQRData, generateQRImage, getSlotColor, isWalkInQR } = require('../utils/qrcode');
 const { sendBookingConfirmation } = require('../utils/email');
@@ -22,7 +23,7 @@ const scanLimiter = rateLimit({
 });
 
 // POST /api/bookings - register for an event
-router.post('/', protect, [
+router.post('/', protect, allowedOnly, [
   body('eventId').isMongoId().withMessage('Invalid event ID'),
   body('foodPreference').isString().trim().isLength({ min: 1, max: 100 }).withMessage('Food preference is required (max 100 chars)'),
   body('timeSlotId').optional().custom((value) => {
@@ -51,7 +52,14 @@ router.post('/', protect, [
     const regEnd = new Date(event.registrationEnd);
     const regEndDate = new Date(regEnd.getFullYear(), regEnd.getMonth(), regEnd.getDate());
 
-    if (today < regStartDate || today > regEndDate) {
+    if (req.employee.role === 'admin') {
+      // Admins may register after the registration window, but not after the event date
+      const eventDay = new Date(event.eventDate);
+      const eventDate = new Date(eventDay.getFullYear(), eventDay.getMonth(), eventDay.getDate());
+      if (today > eventDate) {
+        return res.status(400).json({ message: 'Event date has already passed' });
+      }
+    } else if (today < regStartDate || today > regEndDate) {
       return res.status(400).json({ message: 'Registration period is closed' });
     }
 
@@ -120,6 +128,9 @@ router.post('/', protect, [
     const tempId = Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
     const qrData = generateQRData(tempId, req.employee.employeeId, eventId);
 
+    const allowedEntry = await AllowedEmployee.findOne({ uid: req.employee.employeeId, isActive: true });
+    const employeeLocation = req.employeeLocation || allowedEntry?.location || '';
+
     const booking = await Booking.create({
       employee: req.employee._id,
       event: eventId,
@@ -127,6 +138,7 @@ router.post('/', protect, [
       timeSlotLabel: selectedSlot ? selectedSlot.label : '',
       slotColor: slotColor ? slotColor.dark : '',
       foodPreference,
+      location: employeeLocation,
       qrCode: '',
       qrData,
     });
@@ -154,7 +166,7 @@ router.post('/', protect, [
 });
 
 // GET /api/bookings/my - get current user's bookings
-router.get('/my', protect, async (req, res) => {
+router.get('/my', protect, allowedOnly, async (req, res) => {
   try {
     const filter = { employee: req.employee._id };
     const { page, limit, skip } = parsePagination(req.query);

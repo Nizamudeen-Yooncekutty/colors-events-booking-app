@@ -2,7 +2,7 @@ const express = require('express');
 const { body, param } = require('express-validator');
 const Event = require('../models/Event');
 const Booking = require('../models/Booking');
-const { protect, adminOnly } = require('../middleware/auth');
+const { protect, adminOnly, allowedOnly } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validate');
 const { parsePagination, paginationMeta } = require('../utils/paginate');
 
@@ -39,7 +39,7 @@ function computeEventStatus(event, bookingCount) {
 }
 
 // GET /api/events - list active events with server-side status filtering
-router.get('/', protect, async (req, res) => {
+router.get('/', protect, allowedOnly, async (req, res) => {
   try {
     const baseFilter = { status: 'active' };
 
@@ -131,7 +131,7 @@ router.get('/', protect, async (req, res) => {
 });
 
 // GET /api/events/:id
-router.get('/:id', protect, [
+router.get('/:id', protect, allowedOnly, [
   param('id').isMongoId().withMessage('Invalid event ID'),
 ], handleValidationErrors, async (req, res) => {
   try {

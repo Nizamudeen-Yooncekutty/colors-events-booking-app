@@ -21,6 +21,7 @@ function isTokenExpired(token) {
 
 export function AuthProvider({ children }) {
   const [employee, setEmployee] = useState(null);
+  const [isAllowed, setIsAllowed] = useState(true);
   const [loading, setLoading] = useState(true);
 
   const applyTokenRole = (employeeData, token) => {
@@ -44,6 +45,7 @@ export function AuthProvider({ children }) {
         .then(res => {
           const emp = applyTokenRole(res.data.employee, token);
           setEmployee(emp);
+          setIsAllowed(res.data.isAllowed !== false);
           sessionStorage.setItem('employee', JSON.stringify(emp));
         })
         .catch(() => {
@@ -100,7 +102,7 @@ export function AuthProvider({ children }) {
   useIdleTimeout(handleIdle);
 
   return (
-    <AuthContext.Provider value={{ employee, loading, login, loginWithSSO, register, logout }}>
+    <AuthContext.Provider value={{ employee, isAllowed, loading, login, loginWithSSO, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

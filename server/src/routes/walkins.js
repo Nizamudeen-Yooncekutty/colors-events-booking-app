@@ -42,6 +42,7 @@ router.post('/', protect, adminOrVolunteer, [
     }
     return true;
   }),
+  body('location').optional().trim().isLength({ max: 100 }).withMessage('Location must be at most 100 characters'),
   body('foodPreference').optional().trim().isLength({ max: 100 }).withMessage('Food preference must be under 100 characters'),
   body('timeSlotId').optional().custom((value) => {
     if (value && value.length > 0) {
@@ -52,7 +53,7 @@ router.post('/', protect, adminOrVolunteer, [
   body('notes').optional().trim().isLength({ max: 500 }).withMessage('Notes must be at most 500 characters'),
 ], handleValidationErrors, async (req, res) => {
   try {
-    const { eventId, name, phone, email, attendeeType, department, employeeId, foodPreference, timeSlotId, notes } = req.body;
+    const { eventId, name, phone, email, attendeeType, department, employeeId, location, foodPreference, timeSlotId, notes } = req.body;
 
     const event = await Event.findById(eventId);
     if (!event) {
@@ -67,6 +68,9 @@ router.post('/', protect, adminOrVolunteer, [
     if (attendeeType === 'unregistered_employee') {
       if (!employeeId || employeeId.trim().length === 0) {
         return res.status(400).json({ message: 'Employee ID is required for unregistered employee walk-in' });
+      }
+      if (!location || location.trim().length === 0) {
+        return res.status(400).json({ message: 'Location is required for unregistered employee walk-in' });
       }
 
       // Prevent duplicate walk-in for the same employee at the same event
@@ -112,6 +116,7 @@ router.post('/', protect, adminOrVolunteer, [
       attendeeType,
       department: department || '',
       employeeId: employeeId ? employeeId.toUpperCase() : '',
+      location: location || '',
       foodPreference: foodPreference || '',
       timeSlot: selectedSlot ? selectedSlot._id : null,
       timeSlotLabel: selectedSlot ? selectedSlot.label : '',

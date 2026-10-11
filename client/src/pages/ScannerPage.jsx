@@ -37,7 +37,7 @@ export default function ScannerPage() {
   const [events, setEvents] = useState([]);
   const [walkInForm, setWalkInForm] = useState({
     eventId: '', name: '', phone: '', email: '',
-    attendeeType: 'guest', department: '', employeeId: '',
+    attendeeType: 'guest', department: '', employeeId: '', location: '',
     foodPreference: '', timeSlotId: '', notes: '',
   });
   const [walkInLoading, setWalkInLoading] = useState(false);
@@ -219,6 +219,16 @@ export default function ScannerPage() {
     if (walkInForm.notes && walkInForm.notes.length > 500) {
       errors.notes = 'Notes must be 500 characters or less';
     }
+    if (walkInForm.attendeeType === 'unregistered_employee') {
+      if (!walkInForm.employeeId.trim()) {
+        errors.employeeId = 'Employee ID is required';
+      }
+      if (!walkInForm.location.trim()) {
+        errors.location = 'Location is required';
+      } else if (walkInForm.location.trim().length > 100) {
+        errors.location = 'Location must be 100 characters or less';
+      }
+    }
     if (!walkInForm.eventId) {
       errors.eventId = 'Please select an event';
     }
@@ -249,7 +259,7 @@ export default function ScannerPage() {
       });
       setWalkInForm(f => ({
         ...f, name: '', phone: '', email: '', department: '',
-        employeeId: '', foodPreference: '', timeSlotId: '', notes: '',
+        employeeId: '', location: '', foodPreference: '', timeSlotId: '', notes: '',
       }));
     } catch (err) {
       playErrorBeep();
@@ -541,16 +551,36 @@ export default function ScannerPage() {
 
               {/* Employee ID (for unregistered employees) */}
               {walkInForm.attendeeType === 'unregistered_employee' && (
-                <div>
-                  <Label className="text-xs">Employee ID</Label>
-                  <Input
-                    value={walkInForm.employeeId}
-                    onChange={(e) => setWalkInForm(f => ({ ...f, employeeId: sanitizeEmployeeId(e.target.value) }))}
-                    placeholder="e.g. EMP001"
-                    className="mt-1 border-ust-gray-400 text-sm"
-                    maxLength={20}
-                  />
-                </div>
+                <>
+                  <div>
+                    <Label className="text-xs">Employee ID <span className="text-error">*</span></Label>
+                    <Input
+                      value={walkInForm.employeeId}
+                      onChange={(e) => {
+                        setWalkInForm(f => ({ ...f, employeeId: sanitizeEmployeeId(e.target.value) }));
+                        setWalkInErrors(prev => ({ ...prev, employeeId: '' }));
+                      }}
+                      placeholder="e.g. EMP001"
+                      className={`mt-1 text-sm ${walkInErrors.employeeId ? 'border-error' : 'border-ust-gray-400'}`}
+                      maxLength={20}
+                    />
+                    {walkInErrors.employeeId && <p className="text-error text-[10px] font-medium mt-0.5">{walkInErrors.employeeId}</p>}
+                  </div>
+                  <div>
+                    <Label className="text-xs">Location <span className="text-error">*</span></Label>
+                    <Input
+                      value={walkInForm.location}
+                      onChange={(e) => {
+                        setWalkInForm(f => ({ ...f, location: e.target.value }));
+                        setWalkInErrors(prev => ({ ...prev, location: '' }));
+                      }}
+                      placeholder="e.g. Trivandrum"
+                      className={`mt-1 text-sm ${walkInErrors.location ? 'border-error' : 'border-ust-gray-400'}`}
+                      maxLength={100}
+                    />
+                    {walkInErrors.location && <p className="text-error text-[10px] font-medium mt-0.5">{walkInErrors.location}</p>}
+                  </div>
+                </>
               )}
 
               {/* Contact & department in a row */}

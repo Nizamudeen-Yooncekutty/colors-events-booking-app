@@ -50,6 +50,7 @@ export default function EventsPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [serverCounts, setServerCounts] = useState(null);
+  const [notAllowed, setNotAllowed] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 300);
@@ -57,16 +58,24 @@ export default function EventsPage() {
   }, [search]);
 
   const fetchEvents = useCallback(async (page) => {
-    const res = await api.get('/events', {
-      params: {
-        page,
-        limit: 20,
-        search: debouncedSearch || undefined,
-        filterStatus: activeFilter || undefined,
-      },
-    });
-    if (res.data.filterCounts) setServerCounts(res.data.filterCounts);
-    return { items: res.data.events, pagination: res.data.pagination };
+    try {
+      const res = await api.get('/events', {
+        params: {
+          page,
+          limit: 20,
+          search: debouncedSearch || undefined,
+          filterStatus: activeFilter || undefined,
+        },
+      });
+      if (res.data.filterCounts) setServerCounts(res.data.filterCounts);
+      setNotAllowed(false);
+      return { items: res.data.events, pagination: res.data.pagination };
+    } catch (err) {
+      if (err.response?.status === 403 && err.response?.data?.code === 'NOT_IN_ALLOWED_LIST') {
+        setNotAllowed(true);
+      }
+      return { items: [], pagination: { page: 1, totalPages: 0, total: 0 } };
+    }
   }, [debouncedSearch, activeFilter]);
 
   const { items: events, loading, loadingMore, sentinelRef } = useInfiniteScroll(
@@ -83,6 +92,31 @@ export default function EventsPage() {
   };
 
   const selectedEvent = tagged[selectedIndex];
+
+  if (notAllowed) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center px-4">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="max-w-md text-center"
+        >
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-100">
+            <svg className="h-8 w-8 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+          </div>
+          <h2 className="mb-2 text-lg font-semibold text-foreground">Access Restricted</h2>
+          <p className="mb-4 text-sm text-muted-foreground leading-relaxed">
+            Current events are available only for selected location employees. Your details are not in the mapping list.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Please contact your <span className="font-medium text-foreground">Admin</span> or <span className="font-medium text-foreground">Manager</span> to get access.
+          </p>
+        </motion.div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

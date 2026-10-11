@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '@/lib/api';
 import { formatDate, isRegistrationOpen } from '@/lib/utils';
+import { useAuth } from '@/context/AuthContext';
 import { getSlotColor } from '@/lib/slotColors';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,8 @@ import {
 export default function EventDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const [adminEmpId, setAdminEmpId] = useState('');
   const [event, setEvent] = useState(null);
   const [userBooking, setUserBooking] = useState(null);
   const [selectedFood, setSelectedFood] = useState('');
@@ -31,9 +34,7 @@ export default function EventDetailPage() {
       .then(res => {
         setEvent(res.data.event);
         setUserBooking(res.data.userBooking);
-        if (res.data.event.foodOptions?.length > 0) {
-          setSelectedFood(res.data.event.foodOptions[0].name);
-        }
+        // Food preference must be explicitly chosen by user
         const slots = res.data.event.timeSlots || [];
         const counts = res.data.event.slotCounts || {};
         if (slots.length > 0) {
@@ -74,6 +75,29 @@ export default function EventDetailPage() {
     }
   };
 
+  const handleAdminRegister = async () => {
+    const errors = {};
+    if (!adminEmpId.trim()) errors.empId = 'Employee ID is required';
+    if (event.foodOptions?.length > 0 && !selectedFood) errors.food = 'Please select a food preference';
+    if (event.timeSlots?.length > 0 && !selectedSlot) errors.slot = 'Please select a time slot';
+    setFormErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+    setError('');
+    setSuccess('');
+    setRegistering(true);
+    try {
+      const payload = { eventId: id, employeeId: adminEmpId.trim(), foodPreference: selectedFood };
+      if (selectedSlot) payload.timeSlotId = selectedSlot;
+      const res = await api.post('/admin/register-employee', payload);
+      setSuccess(`${res.data.booking?.employee?.name || adminEmpId.trim().toUpperCase()} has been registered. They can view their QR in My Bookings.`);
+      setAdminEmpId('');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Registration failed');
+    } finally {
+      setRegistering(false);
+    }
+  };
+
   const handleCancel = async () => {
     if (!window.confirm('Are you sure you want to cancel your registration?')) return;
     try {
@@ -97,6 +121,9 @@ export default function EventDetailPage() {
   if (!event) return null;
 
   const regOpen = isRegistrationOpen(event.registrationStart, event.registrationEnd);
+  const eventDay = new Date(event.eventDate);
+  const eventNotPassed = new Date(eventDay.getFullYear(), eventDay.getMonth(), eventDay.getDate()) >= new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+  const showAdminRegister = user?.role === 'admin' && !regOpen && eventNotPassed;
   const isFull = event.maxCapacity > 0 && event.bookingCount >= event.maxCapacity;
 
   return (
@@ -257,11 +284,49 @@ export default function EventDetailPage() {
             ) : regOpen && !isFull ? (
               <div className="rounded-lg border p-4 bg-white">
                 <h3 className="mb-3 text-sm font-semibold text-foreground">Register for this Event</h3>
+
+                {/* Food Preference — shown first for visibility */}
+                {event.foodOptions?.length > 0 && (
+                  <div className={`mb-4 rounded-lg p-3 ${formErrors.food ? 'bg-red-50 border-2 border-error' : 'bg-amber-50 border-2 border-amber-200'}`}>
+                    <p className="mb-2 text-sm font-semibold text-foreground flex items-center gap-1.5">
+                      <UtensilsCrossed className="h-4 w-4 text-primary" />
+                      Select your food preference
+                      <span className="text-error">*</span>
+                    </p>
+                    {!selectedFood && (
+                      <p className="mb-2 text-xs text-amber-700">Please select one option below before registering</p>
+                    )}
+                    <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                      {event.foodOptions.map((opt) => (
+                        <button
+                          key={opt._id}
+                          onClick={() => { setSelectedFood(opt.name); setFormErrors(e => ({ ...e, food: '' })); }}
+                          className={`rounded-md border-2 px-3 py-2 text-xs font-medium transition-all cursor-pointer text-left sm:text-sm ${
+                            selectedFood === opt.name
+                              ? 'border-primary bg-primary-50 text-primary'
+                              : 'border-border bg-white hover:border-primary/40 text-foreground'
+                          }`}
+                        >
+                          {opt.name}
+                          {opt.description && (
+                            <span className="block text-[10px] font-normal text-muted-foreground mt-0.5">{opt.description}</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                    {formErrors.food && (
+                      <p className="text-error text-xs font-medium mt-2">{formErrors.food}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Time Slots */}
                 {event.timeSlots?.length > 0 && (
-                  <div className="mb-3">
-                    <p className="mb-2 text-xs font-medium text-foreground flex items-center gap-1.5">
-                      <Clock className="h-3 w-3 text-primary" />
-                      Choose your time slot *
+                  <div className={`mb-4 rounded-lg p-3 ${formErrors.slot ? 'bg-red-50 border-2 border-error' : 'bg-ust-gray-200'}`}>
+                    <p className="mb-2 text-sm font-semibold text-foreground flex items-center gap-1.5">
+                      <Clock className="h-4 w-4 text-primary" />
+                      Choose your time slot
+                      <span className="text-error">*</span>
                     </p>
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       {event.timeSlots.map((slot) => {
@@ -272,13 +337,13 @@ export default function EventDetailPage() {
                             key={slot._id}
                             type="button"
                             disabled={slotFull}
-                            onClick={() => !slotFull && setSelectedSlot(slot._id)}
+                            onClick={() => { if (!slotFull) { setSelectedSlot(slot._id); setFormErrors(e => ({ ...e, slot: '' })); } }}
                             className={`rounded-md border-2 px-3 py-2.5 text-left transition-all ${
                               slotFull
                                 ? 'border-border bg-ust-gray-200 opacity-60 cursor-not-allowed'
                                 : selectedSlot === slot._id
                                   ? 'border-primary bg-primary-50 text-primary cursor-pointer'
-                                  : 'border-border bg-transparent hover:border-primary/40 text-foreground cursor-pointer'
+                                  : 'border-border bg-white hover:border-primary/40 text-foreground cursor-pointer'
                             }`}
                           >
                             <span className="text-xs font-medium sm:text-sm">{slot.label}</span>
@@ -295,45 +360,67 @@ export default function EventDetailPage() {
                       })}
                     </div>
                     {formErrors.slot && (
-                      <p className="text-error text-[10px] font-medium mt-0.5">{formErrors.slot}</p>
+                      <p className="text-error text-xs font-medium mt-2">{formErrors.slot}</p>
                     )}
                   </div>
                 )}
-                {event.foodOptions?.length > 0 && (
-                  <div className="mb-3">
-                    <p className="mb-2 text-xs font-medium text-foreground flex items-center gap-1.5">
-                      <UtensilsCrossed className="h-3 w-3 text-primary" />
-                      Choose your food preference *
-                    </p>
-                    <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-                      {event.foodOptions.map((opt) => (
-                        <button
-                          key={opt._id}
-                          onClick={() => setSelectedFood(opt.name)}
-                          className={`rounded-md border-2 px-3 py-2 text-xs font-medium transition-all cursor-pointer text-left sm:text-sm ${
-                            selectedFood === opt.name
-                              ? 'border-primary bg-primary-50 text-primary'
-                              : 'border-border bg-transparent hover:border-primary/40 text-foreground'
-                          }`}
-                        >
-                          {opt.name}
-                          {opt.description && (
-                            <span className="block text-[10px] font-normal text-muted-foreground mt-0.5">{opt.description}</span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                    {formErrors.food && (
-                      <p className="text-error text-[10px] font-medium mt-0.5">{formErrors.food}</p>
-                    )}
-                  </div>
-                )}
+
                 <Button size="lg" className="w-full gap-2 text-sm" onClick={handleRegister} disabled={registering}>
                   {registering ? (
                     <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />Registering...</>
                   ) : (
                     <><Ticket className="h-4 w-4" />Register & Get QR Pass</>
                   )}
+                </Button>
+              </div>
+            ) : showAdminRegister ? (
+              <div className="rounded-lg border p-4 bg-white">
+                <h3 className="mb-1 text-sm font-semibold text-foreground">Register Employee</h3>
+                <p className="mb-3 text-xs text-muted-foreground">Registration is closed. As an admin you can still register an employee.</p>
+                <div className="mb-4">
+                  <label className="text-xs font-medium">Employee ID <span className="text-error">*</span></label>
+                  <input
+                    value={adminEmpId}
+                    onChange={(e) => { setAdminEmpId(e.target.value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 20)); setFormErrors(f => ({ ...f, empId: '' })); }}
+                    placeholder="e.g. EMP001"
+                    className={`mt-1 w-full h-9 rounded-md border bg-white px-3 text-sm ${formErrors.empId ? 'border-error' : 'border-border'}`}
+                  />
+                  {formErrors.empId && <p className="text-error text-xs font-medium mt-1">{formErrors.empId}</p>}
+                </div>
+                {event.foodOptions?.length > 0 && (
+                  <div className="mb-4">
+                    <label className="text-xs font-medium">Food preference <span className="text-error">*</span></label>
+                    <select
+                      value={selectedFood}
+                      onChange={(e) => { setSelectedFood(e.target.value); setFormErrors(f => ({ ...f, food: '' })); }}
+                      className={`mt-1 w-full h-9 rounded-md border bg-white px-3 text-sm ${formErrors.food ? 'border-error' : 'border-border'}`}
+                    >
+                      <option value="">Select food preference</option>
+                      {event.foodOptions.map(opt => <option key={opt._id} value={opt.name}>{opt.name}</option>)}
+                    </select>
+                    {formErrors.food && <p className="text-error text-xs font-medium mt-1">{formErrors.food}</p>}
+                  </div>
+                )}
+                {event.timeSlots?.length > 0 && (
+                  <div className="mb-4">
+                    <label className="text-xs font-medium">Time slot <span className="text-error">*</span></label>
+                    <select
+                      value={selectedSlot}
+                      onChange={(e) => { setSelectedSlot(e.target.value); setFormErrors(f => ({ ...f, slot: '' })); }}
+                      className={`mt-1 w-full h-9 rounded-md border bg-white px-3 text-sm ${formErrors.slot ? 'border-error' : 'border-border'}`}
+                    >
+                      <option value="">Select time slot</option>
+                      {event.timeSlots.map(slot => {
+                        const booked = event.slotCounts?.[slot._id] || 0;
+                        const slotFull = slot.maxCapacity > 0 && booked >= slot.maxCapacity;
+                        return <option key={slot._id} value={slot._id} disabled={slotFull}>{slot.label} ({slot.startTime} – {slot.endTime}){slotFull ? ' - Full' : ''}</option>;
+                      })}
+                    </select>
+                    {formErrors.slot && <p className="text-error text-xs font-medium mt-1">{formErrors.slot}</p>}
+                  </div>
+                )}
+                <Button size="lg" className="w-full gap-2 text-sm" onClick={handleAdminRegister} disabled={registering}>
+                  {registering ? 'Registering...' : <><Ticket className="h-4 w-4" />Register Employee</>}
                 </Button>
               </div>
             ) : (

@@ -28,6 +28,12 @@ const bookingSchema = new mongoose.Schema({
     required: true,
     trim: true,
   },
+  location: {
+    type: String,
+    default: '',
+    trim: true,
+    maxlength: 100,
+  },
   qrCode: {
     type: String,
     default: '',

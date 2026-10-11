@@ -13,6 +13,7 @@ import {
   X,
   ChevronDown,
   Bell,
+  ShieldCheck,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useMsalInstance } from '@/auth/useMsalSafe';
@@ -43,6 +44,7 @@ export default function Layout() {
   ];
   if (isAdmin) {
     navItems.unshift({ to: '/admin', label: 'Dashboard', icon: LayoutDashboard });
+    navItems.push({ to: '/admin/allowed-employees', label: 'Access List', icon: ShieldCheck });
   }
   if (isAdmin || isVolunteer) {
     navItems.push({ to: '/scanner', label: 'Scanner', icon: ScanLine });

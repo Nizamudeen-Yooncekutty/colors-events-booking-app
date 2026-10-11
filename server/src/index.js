@@ -17,6 +17,7 @@ const eventRoutes = require('./routes/events');
 const bookingRoutes = require('./routes/bookings');
 const adminRoutes = require('./routes/admin');
 const walkInRoutes = require('./routes/walkins');
+const allowedEmployeeRoutes = require('./routes/allowedEmployees');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -144,6 +145,7 @@ app.use('/api/events', eventRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/walkins', walkInRoutes);
+app.use('/api/admin/allowed-employees', allowedEmployeeRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const Employee = require('../models/Employee');
+const AllowedEmployee = require('../models/AllowedEmployee');
 
 const REFRESH_TOKEN_EXPIRY = '7d';
 const REFRESH_COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
@@ -110,6 +111,21 @@ const adminOrVolunteer = (req, res, next) => {
   next();
 };
 
+const allowedOnly = async (req, res, next) => {
+  if (['admin', 'volunteer'].includes(req.employee.role)) {
+    return next();
+  }
+  const allowed = await AllowedEmployee.findOne({ uid: req.employee.employeeId, isActive: true });
+  if (!allowed) {
+    return res.status(403).json({
+      message: 'Current events are available only for selected location employees. Your details are not in the mapping list. Please contact your Admin or Manager to get access.',
+      code: 'NOT_IN_ALLOWED_LIST',
+    });
+  }
+  req.employeeLocation = allowed.location;
+  next();
+};
+
 const generateToken = (employeeId, role, tokenVersion) => {
   return jwt.sign({ employeeId, role, tokenVersion }, getSigningKey(), {
     expiresIn: process.env.JWT_EXPIRES_IN || '1h',
@@ -121,4 +137,4 @@ const verifyToken = (token, options = {}) => {
   return jwt.verify(token, getVerifyKey(), { algorithms: [algorithm], ...options });
 };
 
-module.exports = { protect, adminOnly, adminOrVolunteer, generateToken, generateRefreshToken, setRefreshCookie, clearRefreshCookie, verifyToken, algorithm };
+module.exports = { protect, adminOnly, adminOrVolunteer, allowedOnly, generateToken, generateRefreshToken, setRefreshCookie, clearRefreshCookie, verifyToken, algorithm };

@@ -134,6 +134,70 @@ export default function LoginPage() {
               </Button>
             )}
 
+            {ssoEnabled && (
+              <div className="flex items-center gap-3">
+                <Separator className="flex-1" />
+                <span className="text-[11px] text-muted-foreground sm:text-xs">or</span>
+                <Separator className="flex-1" />
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="employeeId" className="text-xs">Employee ID</Label>
+                <Input
+                  id="employeeId"
+                  placeholder="Enter your Employee ID"
+                  value={employeeId}
+                  onChange={(e) => { setEmployeeId(sanitizeEmployeeId(e.target.value)); setFieldErrors((p) => ({ ...p, employeeId: '' })); }}
+                  className={fieldErrors.employeeId ? 'border-error' : ''}
+                />
+                {fieldErrors.employeeId && <p className="text-[11px] text-error">{fieldErrors.employeeId}</p>}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="password" className="text-xs">Password</Label>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => { setPassword(e.target.value); setFieldErrors((p) => ({ ...p, password: '' })); }}
+                    className={fieldErrors.password ? 'border-error pr-10' : 'pr-10'}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                {fieldErrors.password && <p className="text-[11px] text-error">{fieldErrors.password}</p>}
+              </div>
+
+              <Button
+                type="submit"
+                variant="outline"
+                className="w-full gap-2 rounded-full text-sm"
+                size="lg"
+                disabled={loading}
+              >
+                {loading ? (
+                  <>
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                    Signing in...
+                  </>
+                ) : (
+                  <>
+                    Sign in with credentials
+                    <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
+              </Button>
+            </form>
+
             <p className="text-center text-[11px] text-muted-foreground sm:text-xs">
               Use your UST corporate credentials to sign in
             </p>

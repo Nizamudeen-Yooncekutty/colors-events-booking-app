@@ -33,6 +33,7 @@ export default function EventDetailSheet({
   const [registering, setRegistering] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [formErrors, setFormErrors] = useState({});
 
   useEffect(() => {
     if (!eventId || !open) return;
@@ -44,9 +45,7 @@ export default function EventDetailSheet({
       .then(res => {
         setEvent(res.data.event);
         setUserBooking(res.data.userBooking);
-        if (res.data.event.foodOptions?.length > 0) {
-          setSelectedFood(res.data.event.foodOptions[0].name);
-        }
+        setSelectedFood('');
         const slots = res.data.event.timeSlots || [];
         const counts = res.data.event.slotCounts || {};
         if (slots.length > 0) {
@@ -59,6 +58,15 @@ export default function EventDetailSheet({
   }, [eventId, open]);
 
   const handleRegister = async () => {
+    const errors = {};
+    if (event.foodOptions?.length > 0 && !selectedFood) {
+      errors.food = 'Please select a food preference';
+    }
+    if (event.timeSlots?.length > 0 && !selectedSlot) {
+      errors.slot = 'Please select a time slot';
+    }
+    setFormErrors(errors);
+    if (Object.keys(errors).length > 0) return;
     setError('');
     setRegistering(true);
     try {
@@ -306,12 +314,43 @@ export default function EventDetailSheet({
               </div>
             ) : regOpen && !isFull ? (
               <div className="space-y-2.5">
+                {/* Food preference picker — shown first */}
+                {event.foodOptions?.length > 0 && (
+                  <div className={`rounded-lg p-2.5 ${formErrors.food ? 'bg-red-50 border-2 border-error' : !selectedFood ? 'bg-amber-50 border-2 border-amber-200' : 'bg-ust-gray-200'}`}>
+                    <p className="mb-1.5 text-xs font-semibold text-foreground flex items-center gap-1">
+                      <UtensilsCrossed className="h-3.5 w-3.5 text-primary" />
+                      Select food preference <span className="text-error">*</span>
+                    </p>
+                    {!selectedFood && (
+                      <p className="mb-1.5 text-[10px] text-amber-700">Please select one option</p>
+                    )}
+                    <div className="flex flex-wrap gap-1.5">
+                      {event.foodOptions.map((opt) => (
+                        <button
+                          key={opt._id}
+                          onClick={() => { setSelectedFood(opt.name); setFormErrors(e => ({ ...e, food: '' })); }}
+                          className={`rounded-full border-2 px-3 py-1 text-xs font-medium transition-all cursor-pointer ${
+                            selectedFood === opt.name
+                              ? 'border-primary bg-primary-50 text-primary'
+                              : 'border-border bg-white hover:border-primary/40 text-foreground'
+                          }`}
+                        >
+                          {opt.name}
+                        </button>
+                      ))}
+                    </div>
+                    {formErrors.food && (
+                      <p className="text-error text-[10px] font-medium mt-1">{formErrors.food}</p>
+                    )}
+                  </div>
+                )}
+
                 {/* Time slot picker */}
                 {event.timeSlots?.length > 0 && (
-                  <div>
-                    <p className="mb-1.5 text-[11px] text-muted-foreground font-medium flex items-center gap-1">
-                      <Clock className="h-3 w-3 text-primary" />
-                      Choose your time slot
+                  <div className={`rounded-lg p-2.5 ${formErrors.slot ? 'bg-red-50 border-2 border-error' : 'bg-ust-gray-200'}`}>
+                    <p className="mb-1.5 text-xs font-semibold text-foreground flex items-center gap-1">
+                      <Clock className="h-3.5 w-3.5 text-primary" />
+                      Choose time slot <span className="text-error">*</span>
                     </p>
                     <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                       {event.timeSlots.map((slot) => {
@@ -322,13 +361,13 @@ export default function EventDetailSheet({
                             key={slot._id}
                             type="button"
                             disabled={slotFull}
-                            onClick={() => !slotFull && setSelectedSlot(slot._id)}
+                            onClick={() => { if (!slotFull) { setSelectedSlot(slot._id); setFormErrors(e => ({ ...e, slot: '' })); } }}
                             className={`rounded-md border-2 px-2.5 py-2 text-left transition-all ${
                               slotFull
                                 ? 'border-border bg-ust-gray-200 opacity-60 cursor-not-allowed'
                                 : selectedSlot === slot._id
                                   ? 'border-primary bg-primary-50 text-primary cursor-pointer'
-                                  : 'border-border bg-transparent hover:border-primary/40 text-foreground cursor-pointer'
+                                  : 'border-border bg-white hover:border-primary/40 text-foreground cursor-pointer'
                             }`}
                           >
                             <span className="text-xs font-medium">{slot.label}</span>
@@ -344,38 +383,16 @@ export default function EventDetailSheet({
                         );
                       })}
                     </div>
-                  </div>
-                )}
-
-                {/* Food preference picker */}
-                {event.foodOptions?.length > 0 && (
-                  <div>
-                    <p className="mb-1.5 text-[11px] text-muted-foreground font-medium flex items-center gap-1">
-                      <UtensilsCrossed className="h-3 w-3 text-primary" />
-                      Choose your food preference
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {event.foodOptions.map((opt) => (
-                        <button
-                          key={opt._id}
-                          onClick={() => setSelectedFood(opt.name)}
-                          className={`rounded-full border-2 px-3 py-1 text-xs font-medium transition-all cursor-pointer ${
-                            selectedFood === opt.name
-                              ? 'border-primary bg-primary-50 text-primary'
-                              : 'border-border bg-transparent hover:border-primary/40 text-foreground'
-                          }`}
-                        >
-                          {opt.name}
-                        </button>
-                      ))}
-                    </div>
+                    {formErrors.slot && (
+                      <p className="text-error text-[10px] font-medium mt-1">{formErrors.slot}</p>
+                    )}
                   </div>
                 )}
 
                 <Button
                   className="w-full gap-2 text-sm"
                   onClick={handleRegister}
-                  disabled={registering || (event.timeSlots?.length > 0 && !selectedSlot)}
+                  disabled={registering}
                 >
                   {registering ? (
                     <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />Registering...</>

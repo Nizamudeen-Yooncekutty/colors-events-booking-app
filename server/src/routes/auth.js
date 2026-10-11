@@ -2,6 +2,7 @@ const express = require('express');
 const { body } = require('express-validator');
 const Employee = require('../models/Employee');
 const RoleUser = require('../models/RoleUser');
+const AllowedEmployee = require('../models/AllowedEmployee');
 const { protect, generateToken, generateRefreshToken, setRefreshCookie, clearRefreshCookie, verifyToken } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validate');
 const { verifyAzureToken } = require('../utils/azureAuth');
@@ -226,7 +227,12 @@ router.post('/sso', async (req, res) => {
 
 // GET /api/auth/me
 router.get('/me', protect, async (req, res) => {
-  res.json({ employee: req.employee });
+  let isAllowed = true;
+  if (req.employee.role === 'employee') {
+    const allowed = await AllowedEmployee.findOne({ uid: req.employee.employeeId, isActive: true });
+    isAllowed = !!allowed;
+  }
+  res.json({ employee: req.employee, isAllowed });
 });
 
 // POST /api/auth/refresh - refresh access token using httpOnly cookie

@@ -6,8 +6,11 @@ const Event = require('../models/Event');
 const Booking = require('../models/Booking');
 const WalkIn = require('../models/WalkIn');
 const RoleUser = require('../models/RoleUser');
+const AllowedEmployee = require('../models/AllowedEmployee');
 const { protect, adminOnly } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validate');
+const { generateQRData, generateQRImage, getSlotColor } = require('../utils/qrcode');
+const { sendBookingConfirmation } = require('../utils/email');
 const { parsePagination, paginationMeta } = require('../utils/paginate');
 
 const router = express.Router();
@@ -94,15 +97,17 @@ router.get('/events/:eventId/bookings', protect, adminOnly, [
   query('food').optional({ values: 'falsy' }).isString().trim().isLength({ max: 100 }).withMessage('Invalid food filter'),
   query('slot').optional({ values: 'falsy' }).isMongoId().withMessage('Invalid slot filter'),
   query('search').optional({ values: 'falsy' }).isString().trim().isLength({ max: 100 }).withMessage('Search must be under 100 characters'),
+  query('location').optional({ values: 'falsy' }).isString().trim().isLength({ max: 100 }).withMessage('Invalid location filter'),
 ], handleValidationErrors, async (req, res) => {
   try {
-    const { status, food, search, slot } = req.query;
+    const { status, food, search, slot, location } = req.query;
     const eventObjectId = new mongoose.Types.ObjectId(req.params.eventId);
     const filter = { event: eventObjectId };
 
     if (status) filter.status = status;
     if (food) filter.foodPreference = food;
     if (slot) filter.timeSlot = new mongoose.Types.ObjectId(slot);
+    if (location) filter.location = new RegExp(`^${location.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
 
     // Search by employee fields using a lookup pipeline
     let employeeIds = null;
@@ -142,7 +147,9 @@ router.get('/events/:eventId/bookings', protect, adminOnly, [
       .skip(skip)
       .limit(limit);
 
-    res.json({ bookings, stats, pagination: paginationMeta(stats.total, page, limit) });
+    const locations = await Booking.distinct('location', { event: eventObjectId, status: { $ne: 'cancelled' }, location: { $ne: '' } });
+
+    res.json({ bookings, stats, locations, pagination: paginationMeta(stats.total, page, limit) });
   } catch (error) {
     res.status(500).json({ message: 'An error occurred. Please try again.' });
   }
@@ -242,12 +249,31 @@ router.get('/events/:eventId/report', protect, adminOnly, [
       .map(([hour, counts]) => ({ hour, ...counts, total: counts.employees + counts.walkIns }))
       .sort((a, b) => a.hour.localeCompare(b.hour));
 
+    // Location breakdown
+    const locationMap = {};
+    bookings.forEach(b => {
+      const loc = b.location || 'Unknown';
+      locationMap[loc] = (locationMap[loc] || { total: 0, checkedIn: 0 });
+      locationMap[loc].total++;
+      if (b.status === 'checked_in') locationMap[loc].checkedIn++;
+    });
+    walkIns.forEach(w => {
+      const loc = w.location || 'Unknown';
+      locationMap[loc] = (locationMap[loc] || { total: 0, checkedIn: 0 });
+      locationMap[loc].total++;
+      locationMap[loc].checkedIn++;
+    });
+    const locationBreakdown = Object.entries(locationMap)
+      .map(([location, counts]) => ({ location, ...counts }))
+      .sort((a, b) => b.total - a.total);
+
     res.json({
       event,
       classification,
       totalAttendees,
       foodBreakdown,
       slotBreakdown,
+      locationBreakdown,
       checkInTimeline,
       bookings,
       walkIns,
@@ -316,7 +342,7 @@ router.get('/events/:eventId/report/download', protect, adminOnly, [
     ];
 
     const headers = [
-      'Type', 'Attendee Category', 'Name', 'Employee ID', 'Email', 'Phone', 'Department',
+      'Type', 'Attendee Category', 'Name', 'Employee ID', 'Email', 'Phone', 'Department', 'Location',
       ...(hasSlots ? ['Time Slot'] : []),
       'Food Preference', 'Status', 'Checked In At', 'Notes',
     ];
@@ -332,6 +358,7 @@ router.get('/events/:eventId/report/download', protect, adminOnly, [
         b.employee?.email || '',
         b.employee?.phone || '',
         b.employee?.department || '',
+        b.location || '',
         ...(hasSlots ? [b.timeSlotLabel || ''] : []),
         b.foodPreference || '',
         b.status === 'checked_in' ? 'Checked In' : 'Confirmed',
@@ -355,6 +382,7 @@ router.get('/events/:eventId/report/download', protect, adminOnly, [
         w.email || '',
         w.phone || '',
         w.department || '',
+        w.location || '',
         ...(hasSlots ? [w.timeSlotLabel || ''] : []),
         w.foodPreference || '',
         'Walk-in',
@@ -499,6 +527,106 @@ router.delete('/role-users/:id', protect, adminOnly, [
 
     res.json({ message: 'Role user removed, reverted to employee' });
   } catch (error) {
+    res.status(500).json({ message: 'An error occurred. Please try again.' });
+  }
+});
+
+// POST /api/admin/register-employee - admin registers an employee (bypasses registration window)
+router.post('/register-employee', protect, adminOnly, [
+  body('eventId').isMongoId().withMessage('Invalid event ID'),
+  body('employeeId').isString().trim().isLength({ min: 1, max: 20 }).isAlphanumeric().withMessage('Employee ID must be alphanumeric (max 20 chars)'),
+  body('foodPreference').isString().trim().isLength({ min: 1, max: 100 }).withMessage('Food preference is required (max 100 chars)'),
+  body('timeSlotId').optional({ values: 'falsy' }).matches(/^[a-f0-9]{24}$/).withMessage('Invalid time slot ID'),
+], handleValidationErrors, async (req, res) => {
+  try {
+    const { eventId, foodPreference, timeSlotId } = req.body;
+    const employeeId = req.body.employeeId.trim().toUpperCase();
+
+    const event = await Event.findById(eventId);
+    if (!event) return res.status(404).json({ message: 'Event not found' });
+    if (event.status !== 'active') {
+      return res.status(400).json({ message: 'Event is not open for registration' });
+    }
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const ed = new Date(event.eventDate);
+    if (today > new Date(ed.getFullYear(), ed.getMonth(), ed.getDate())) {
+      return res.status(400).json({ message: 'Event date has already passed' });
+    }
+
+    const employee = await Employee.findOne({ employeeId });
+    if (!employee) return res.status(404).json({ message: 'Employee not found' });
+
+    const existing = await Booking.findOne({ employee: employee._id, event: eventId, status: { $ne: 'cancelled' } });
+    if (existing) return res.status(400).json({ message: 'This employee is already registered for this event' });
+
+    let selectedSlot = null;
+    if (event.timeSlots.length > 0) {
+      if (!timeSlotId) return res.status(400).json({ message: 'Please select a time slot' });
+      selectedSlot = event.timeSlots.id(timeSlotId);
+      if (!selectedSlot) return res.status(400).json({ message: 'Invalid time slot' });
+      if (selectedSlot.maxCapacity > 0) {
+        const slotCount = await Booking.countDocuments({ event: eventId, timeSlot: timeSlotId, status: { $ne: 'cancelled' } });
+        if (slotCount >= selectedSlot.maxCapacity) {
+          return res.status(400).json({ message: `The "${selectedSlot.label}" slot is fully booked` });
+        }
+      }
+    }
+
+    if (event.maxCapacity > 0) {
+      const currentCount = await Booking.countDocuments({ event: eventId, status: { $ne: 'cancelled' } });
+      if (currentCount >= event.maxCapacity) {
+        return res.status(400).json({ message: 'Event is fully booked' });
+      }
+    }
+
+    if (event.foodOptions.length > 0) {
+      const validOptions = event.foodOptions.map(o => o.name);
+      if (!validOptions.includes(foodPreference)) {
+        return res.status(400).json({ message: `Invalid food preference. Choose from: ${validOptions.join(', ')}` });
+      }
+    }
+
+    const totalSlots = event.timeSlots.length;
+    const slotIndex = selectedSlot
+      ? event.timeSlots.findIndex(s => s._id.toString() === selectedSlot._id.toString())
+      : null;
+    const slotColor = selectedSlot ? getSlotColor(slotIndex, totalSlots) : null;
+    const tempId = Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
+    const qrData = generateQRData(tempId, employee.employeeId, eventId);
+
+    const allowedEntry = await AllowedEmployee.findOne({ uid: employee.employeeId, isActive: true });
+    const empLocation = allowedEntry?.location || '';
+
+    const booking = await Booking.create({
+      employee: employee._id,
+      event: eventId,
+      timeSlot: selectedSlot ? selectedSlot._id : null,
+      timeSlotLabel: selectedSlot ? selectedSlot.label : '',
+      slotColor: slotColor ? slotColor.dark : '',
+      foodPreference,
+      location: empLocation,
+      qrCode: '',
+      qrData,
+    });
+
+    const populated = await booking.populate([
+      { path: 'employee', select: 'name employeeId email department' },
+      { path: 'event', select: 'title eventDate venue location timeSlots' },
+    ]);
+
+    generateQRImage(qrData, slotIndex, totalSlots).then(qrCode => {
+      Booking.findByIdAndUpdate(booking._id, { qrCode }).catch(() => {});
+    }).catch(() => {});
+
+    try { sendBookingConfirmation(employee, event, booking); } catch (e) { /* non-blocking */ }
+
+    res.status(201).json({ booking: populated });
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({ message: 'This employee is already registered for this event' });
+    }
     res.status(500).json({ message: 'An error occurred. Please try again.' });
   }
 });

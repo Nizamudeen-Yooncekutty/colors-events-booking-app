@@ -36,6 +36,12 @@ const walkInSchema = new mongoose.Schema({
     default: '',
     trim: true,
   },
+  location: {
+    type: String,
+    default: '',
+    trim: true,
+    maxlength: 100,
+  },
   foodPreference: {
     type: String,
     default: '',
