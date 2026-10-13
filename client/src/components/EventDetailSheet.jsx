@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 import { formatDate, isRegistrationOpen } from '@/lib/utils';
 import {
   Sheet, SheetContent, SheetTitle, SheetDescription,
@@ -25,10 +26,12 @@ export default function EventDetailSheet({
   hasNext,
 }) {
   const navigate = useNavigate();
+  const { employee: currentUser } = useAuth();
   const [event, setEvent] = useState(null);
   const [userBooking, setUserBooking] = useState(null);
   const [selectedFood, setSelectedFood] = useState('');
   const [selectedSlot, setSelectedSlot] = useState('');
+  const [adminEmpId, setAdminEmpId] = useState('');
   const [loading, setLoading] = useState(true);
   const [registering, setRegistering] = useState(false);
   const [error, setError] = useState('');
@@ -95,6 +98,31 @@ export default function EventDetailSheet({
 
   const regOpen = event && isRegistrationOpen(event.registrationStart, event.registrationEnd);
   const isFull = event && event.maxCapacity > 0 && event.bookingCount >= event.maxCapacity;
+  const eventDay = event ? new Date(event.eventDate) : new Date();
+  const eventNotPassed = new Date(eventDay.getFullYear(), eventDay.getMonth(), eventDay.getDate()) >= new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+  const showAdminRegister = currentUser?.role === 'admin' && !regOpen && eventNotPassed && !userBooking;
+
+  const handleAdminRegister = async () => {
+    const errors = {};
+    if (!adminEmpId.trim()) errors.empId = 'Employee ID is required';
+    if (event.foodOptions?.length > 0 && !selectedFood) errors.food = 'Please select food preference';
+    if (event.timeSlots?.length > 0 && !selectedSlot) errors.slot = 'Please select a time slot';
+    setFormErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+    setError('');
+    setRegistering(true);
+    try {
+      const payload = { eventId, employeeId: adminEmpId.trim(), foodPreference: selectedFood };
+      if (selectedSlot) payload.timeSlotId = selectedSlot;
+      const res = await api.post('/admin/register-employee', payload);
+      setSuccess(`${res.data.booking?.employee?.name || adminEmpId.trim().toUpperCase()} has been registered successfully.`);
+      setAdminEmpId('');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Registration failed');
+    } finally {
+      setRegistering(false);
+    }
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -393,6 +421,81 @@ export default function EventDetailSheet({
                     <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />Registering...</>
                   ) : (
                     <><Ticket className="h-4 w-4" />Register & Get QR Pass</>
+                  )}
+                </Button>
+              </div>
+            ) : showAdminRegister ? (
+              <div className="space-y-2.5">
+                {error && (
+                  <div className="flex items-start gap-2 rounded-md bg-error-light p-2.5 text-xs text-error">
+                    <XCircle className="h-4 w-4 shrink-0 mt-0.5" /><span>{error}</span>
+                  </div>
+                )}
+                {success && (
+                  <div className="flex items-start gap-2 rounded-md bg-success-light p-2.5 text-xs text-green-700">
+                    <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" /><span>{success}</span>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">Registration closed. Register an employee:</p>
+                <div>
+                  <input
+                    value={adminEmpId}
+                    onChange={(e) => { setAdminEmpId(e.target.value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 20)); setFormErrors(f => ({ ...f, empId: '' })); }}
+                    placeholder="Enter Employee ID"
+                    className={`w-full h-9 rounded-md border bg-white px-3 text-sm ${formErrors.empId ? 'border-error' : 'border-border'}`}
+                  />
+                  {formErrors.empId && <p className="text-error text-[10px] font-medium mt-0.5">{formErrors.empId}</p>}
+                </div>
+
+                {event.foodOptions?.length > 0 && (
+                  <div className={`rounded-lg p-2.5 ${formErrors.food ? 'bg-red-50 border-2 border-error' : !selectedFood ? 'bg-amber-50 border-2 border-amber-200' : 'bg-ust-gray-200'}`}>
+                    <p className="mb-1.5 text-xs font-semibold text-foreground flex items-center gap-1">
+                      <UtensilsCrossed className="h-3.5 w-3.5 text-primary" /> Food preference <span className="text-error">*</span>
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {event.foodOptions.map((opt) => (
+                        <button key={opt._id} onClick={() => { setSelectedFood(opt.name); setFormErrors(e => ({ ...e, food: '' })); }}
+                          className={`rounded-full border-2 px-3 py-1 text-xs font-medium transition-all cursor-pointer ${
+                            selectedFood === opt.name ? 'border-primary bg-primary-50 text-primary' : 'border-border bg-white hover:border-primary/40 text-foreground'
+                          }`}>{opt.name}</button>
+                      ))}
+                    </div>
+                    {formErrors.food && <p className="text-error text-[10px] font-medium mt-1">{formErrors.food}</p>}
+                  </div>
+                )}
+
+                {event.timeSlots?.length > 0 && (
+                  <div className={`rounded-lg p-2.5 ${formErrors.slot ? 'bg-red-50 border-2 border-error' : 'bg-ust-gray-200'}`}>
+                    <p className="mb-1.5 text-xs font-semibold text-foreground flex items-center gap-1">
+                      <Clock className="h-3.5 w-3.5 text-primary" /> Time slot <span className="text-error">*</span>
+                    </p>
+                    <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                      {event.timeSlots.map((slot) => {
+                        const booked = event.slotCounts?.[slot._id] || 0;
+                        const slotFull = slot.maxCapacity > 0 && booked >= slot.maxCapacity;
+                        return (
+                          <button key={slot._id} type="button" disabled={slotFull}
+                            onClick={() => { if (!slotFull) { setSelectedSlot(slot._id); setFormErrors(e => ({ ...e, slot: '' })); } }}
+                            className={`rounded-md border-2 px-2.5 py-2 text-left transition-all ${
+                              slotFull ? 'border-border bg-ust-gray-200 opacity-60 cursor-not-allowed'
+                              : selectedSlot === slot._id ? 'border-primary bg-primary-50 text-primary cursor-pointer'
+                              : 'border-border bg-white hover:border-primary/40 text-foreground cursor-pointer'
+                            }`}>
+                            <span className="text-xs font-medium">{slot.label}</span>
+                            <span className="block text-[10px] text-muted-foreground mt-0.5">{slot.startTime} – {slot.endTime}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {formErrors.slot && <p className="text-error text-[10px] font-medium mt-1">{formErrors.slot}</p>}
+                  </div>
+                )}
+
+                <Button className="w-full gap-2 text-sm" onClick={handleAdminRegister} disabled={registering}>
+                  {registering ? (
+                    <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />Registering...</>
+                  ) : (
+                    <><Ticket className="h-4 w-4" />Register Employee</>
                   )}
                 </Button>
               </div>

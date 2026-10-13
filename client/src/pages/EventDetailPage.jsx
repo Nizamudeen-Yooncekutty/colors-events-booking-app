@@ -17,7 +17,7 @@ import {
 export default function EventDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { employee: user } = useAuth();
   const [adminEmpId, setAdminEmpId] = useState('');
   const [event, setEvent] = useState(null);
   const [userBooking, setUserBooking] = useState(null);
