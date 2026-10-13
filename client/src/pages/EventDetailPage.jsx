@@ -274,11 +274,6 @@ export default function EventDetailPage() {
                     <Ticket className="h-4 w-4" />
                     View QR Pass
                   </Button>
-                  {userBooking.status !== 'checked_in' && (
-                    <Button variant="outline" className="text-error hover:bg-error-light text-sm" onClick={handleCancel}>
-                      Cancel
-                    </Button>
-                  )}
                 </div>
               </motion.div>
             ) : regOpen && !isFull ? (
