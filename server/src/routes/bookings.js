@@ -10,6 +10,7 @@ const { handleValidationErrors } = require('../middleware/validate');
 const { generateQRData, generateQRImage, getSlotColor, isWalkInQR } = require('../utils/qrcode');
 const { sendBookingConfirmation } = require('../utils/email');
 const { parsePagination, paginationMeta } = require('../utils/paginate');
+const { logAction, logError } = require('../middleware/requestLogger');
 
 const router = express.Router();
 
@@ -156,11 +157,14 @@ router.post('/', protect, allowedOnly, [
     // Send confirmation email (non-blocking)
     sendBookingConfirmation(req.employee, event, booking);
 
+    logAction('BOOKING_CREATED', { employeeId: req.employee.employeeId, name: req.employee.name, eventTitle: event.title, food: foodPreference, slot: selectedSlot?.label, location: employeeLocation });
+
     res.status(201).json({ booking: populated });
   } catch (error) {
     if (error.code === 11000) {
       return res.status(400).json({ message: 'You have already registered for this event' });
     }
+    logError('BOOKING_ERROR', error, { employeeId: req.employee?.employeeId });
     res.status(500).json({ message: 'An error occurred. Please try again.' });
   }
 });
@@ -294,12 +298,15 @@ router.post('/scan', protect, adminOrVolunteer, scanLimiter, [
     booking.checkedInBy = req.employee._id;
     await booking.save();
 
+    logAction('SCAN_CHECKIN', { employeeId: booking.employee?.employeeId, name: booking.employee?.name, eventTitle: booking.event?.title, scannedBy: req.employee.employeeId, food: booking.foodPreference, slot: booking.timeSlotLabel, location: booking.location });
+
     res.json({
       message: 'Check-in successful!',
       valid: true,
       booking,
     });
   } catch (error) {
+    logError('SCAN_ERROR', error, { scannedBy: req.employee?.employeeId });
     res.status(500).json({ message: 'An error occurred. Please try again.' });
   }
 });

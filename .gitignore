@@ -6,6 +6,7 @@ dist
 .DS_Store
 .vercel
 *.log
+server/logs/
 
 # SSL certificates
 server/certs/

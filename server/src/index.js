@@ -11,6 +11,7 @@ const rateLimit = require('express-rate-limit');
 const connectDB = require('./config/db');
 const { sanitizeInputs } = require('./middleware/sanitize');
 const { requestId } = require('./middleware/requestId');
+const { requestLogger } = require('./middleware/requestLogger');
 
 const authRoutes = require('./routes/auth');
 const eventRoutes = require('./routes/events');
@@ -108,6 +109,7 @@ app.use((req, res, next) => {
 
 // Request ID tracking
 app.use(requestId);
+app.use(requestLogger);
 
 // Logging
 const isProduction = process.env.NODE_ENV === 'production';

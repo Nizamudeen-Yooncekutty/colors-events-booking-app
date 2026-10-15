@@ -9,6 +9,7 @@ const { protect, adminOrVolunteer, adminOnly } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validate');
 const { getSlotColor, generateWalkInQRData, generateWalkInQRImage, isWalkInQR, parseWalkInQR, WALKIN_TYPE_COLORS } = require('../utils/qrcode');
 const { parsePagination, paginationMeta } = require('../utils/paginate');
+const { logAction, logError } = require('../middleware/requestLogger');
 
 const router = express.Router();
 
@@ -130,11 +131,14 @@ router.post('/', protect, adminOrVolunteer, [
       { path: 'checkedInBy', select: 'name employeeId' },
     ]);
 
+    logAction('WALKIN_CREATED', { type: attendeeType, name: walkIn.name, employeeId: walkIn.employeeId, food: walkIn.foodPreference, location: walkIn.location, checkedInBy: req.employee.employeeId });
+
     res.status(201).json({
       message: `${TYPE_LABELS[attendeeType] || 'Walk-in'} checked in successfully!`,
       walkIn: populated,
     });
   } catch (error) {
+    logError('WALKIN_ERROR', error, { checkedInBy: req.employee?.employeeId });
     res.status(500).json({ message: 'An error occurred. Please try again.' });
   }
 });

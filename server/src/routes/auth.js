@@ -6,6 +6,7 @@ const AllowedEmployee = require('../models/AllowedEmployee');
 const { protect, generateToken, generateRefreshToken, setRefreshCookie, clearRefreshCookie, verifyToken } = require('../middleware/auth');
 const { handleValidationErrors } = require('../middleware/validate');
 const { verifyAzureToken } = require('../utils/azureAuth');
+const { logAction, logError } = require('../middleware/requestLogger');
 
 const router = express.Router();
 
@@ -126,11 +127,14 @@ router.post('/login', loginValidation, async (req, res) => {
     const refreshToken = generateRefreshToken(employee.employeeId, employee.tokenVersion);
     setRefreshCookie(res, refreshToken);
 
+    logAction('LOGIN_SUCCESS', { employeeId: employee.employeeId, name: employee.name, role: employee.role, ip: req.ip });
+
     res.json({
       employee: safeEmployee,
       token: generateToken(employee.employeeId, employee.role, employee.tokenVersion),
     });
   } catch (error) {
+    logError('LOGIN_ERROR', error, { ip: req.ip });
     res.status(500).json({ message: 'Login failed. Please try again.' });
   }
 });
@@ -209,12 +213,14 @@ router.post('/sso', async (req, res) => {
     const refreshToken = generateRefreshToken(employee.employeeId, employee.tokenVersion);
     setRefreshCookie(res, refreshToken);
 
+    logAction('SSO_LOGIN_SUCCESS', { employeeId: employee.employeeId, name: employee.name, role: employee.role, email: employee.email, ip: req.ip });
+
     res.json({
       employee: safeEmployee,
       token: generateToken(employee.employeeId, employee.role, employee.tokenVersion),
     });
   } catch (error) {
-    console.error('SSO auth error:', error.name, error.message);
+    logError('SSO_LOGIN_ERROR', error, { ip: req.ip });
     if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
       return res.status(401).json({ message: 'Invalid or expired SSO token' });
     }
