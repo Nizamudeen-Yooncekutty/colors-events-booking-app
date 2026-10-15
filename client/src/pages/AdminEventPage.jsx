@@ -12,7 +12,7 @@ import LoadingMore from '@/components/LoadingMore';
 import useInfiniteScroll from '@/hooks/useInfiniteScroll';
 import {
   ArrowLeft, Users, ScanLine, Ticket, Search,
-  UtensilsCrossed, Download, Pencil, Trash2, Clock,
+  UtensilsCrossed, Download, Upload, Pencil, Trash2, Clock,
   UserPlus, UsersRound, Building2, BarChart3, QrCode,
 } from 'lucide-react';
 import { getSlotColor } from '@/lib/slotColors';
@@ -93,6 +93,72 @@ export default function AdminEventPage() {
       URL.revokeObjectURL(url);
     } catch {
       alert('Failed to download report');
+    }
+  };
+
+  const [importResult, setImportResult] = useState(null);
+
+  const handleImportOffline = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setImportResult(null);
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      try {
+        const text = ev.target.result;
+        const lines = text.split('\n').filter(l => l.trim());
+        if (lines.length < 2) { alert('Empty CSV file'); return; }
+
+        const header = lines[0].toLowerCase();
+        const isOfflineCSV = header.includes('type') && header.includes('employee id') && header.includes('status');
+        if (!isOfflineCSV) { alert('Invalid CSV format. Please use the CSV exported from the Offline Scanner.'); return; }
+
+        const checkins = [];
+        const walkins = [];
+
+        for (let i = 1; i < lines.length; i++) {
+          const parts = lines[i].split(',').map(p => p.trim().replace(/^["']|["']$/g, ''));
+          if (parts.length < 8) continue;
+          const [type, empId, name, , food, , , status, checkedInAt] = parts;
+
+          if (type === 'Booking' && status.includes('Offline')) {
+            checkins.push({ employeeId: empId, checkedInAt: checkedInAt || null });
+          } else if (type.includes('Walk-in') && type.includes('Offline')) {
+            walkins.push({ employeeId: empId, name, food });
+          }
+        }
+
+        if (checkins.length === 0 && walkins.length === 0) {
+          alert('No offline check-ins or walk-ins found in this CSV.');
+          return;
+        }
+
+        if (!window.confirm(`Import ${checkins.length} check-ins and ${walkins.length} walk-ins to the database?`)) return;
+
+        const res = await api.post(`/admin/events/${eventId}/import-offline`, { checkins, walkins });
+        setImportResult(res.data.results);
+        fetchData();
+      } catch (err) {
+        alert(err.response?.data?.message || 'Import failed');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const downloadOfflineScanner = async () => {
+    try {
+      const res = await api.get(`/admin/events/${eventId}/offline-scanner`, {
+        responseType: 'blob',
+      });
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `QPass-Offline-Scanner-${event?.title || 'event'}.html`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert('Failed to download offline scanner');
     }
   };
 
@@ -302,11 +368,38 @@ export default function AdminEventPage() {
                 </button>
               </div>
               <div className="flex-1" />
+              <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs sm:h-9" onClick={downloadOfflineScanner}>
+                <Download className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                Offline Scanner
+              </Button>
+              <label className="cursor-pointer">
+                <input type="file" accept=".csv" onChange={handleImportOffline} className="hidden" />
+                <span className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-3 h-8 text-xs sm:h-9 hover:bg-accent hover:text-accent-foreground font-medium">
+                  <Upload className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                  Import Offline
+                </span>
+              </label>
               <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs sm:h-9" onClick={downloadReport}>
                 <Download className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                 Download Report
               </Button>
             </div>
+
+            {importResult && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
+                className="rounded-lg border bg-green-50 p-3 text-sm mb-2">
+                <p className="font-semibold text-green-800 mb-1">Offline Import Complete</p>
+                <div className="text-xs text-green-700 space-y-0.5">
+                  <p>Checked in: <strong>{importResult.checkedIn}</strong></p>
+                  {importResult.alreadyCheckedIn > 0 && <p>Already checked in (skipped): {importResult.alreadyCheckedIn}</p>}
+                  {importResult.notFound > 0 && <p>Not found (skipped): {importResult.notFound}</p>}
+                  {importResult.walkInsAdded > 0 && <p>Walk-ins added: <strong>{importResult.walkInsAdded}</strong></p>}
+                  {importResult.walkInsDuplicate > 0 && <p>Walk-ins duplicate (skipped): {importResult.walkInsDuplicate}</p>}
+                  {importResult.errors > 0 && <p className="text-red-600">Errors: {importResult.errors}</p>}
+                </div>
+                <button onClick={() => setImportResult(null)} className="text-xs text-green-600 underline mt-1">Dismiss</button>
+              </motion.div>
+            )}
 
             <div className="flex flex-col gap-2 sm:flex-row">
               <div className="relative flex-1">
